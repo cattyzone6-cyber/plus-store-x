@@ -6,7 +6,7 @@ import { enqueue } from '../../lib/jobs';
 import { tg } from '../../lib/telegram';
 import { cancelPendingOrder, deliverManual, getOrder, OrderError, refundOrder } from '../../services/orders';
 import { approveManualDeposit, rejectDeposit } from '../../services/deposits';
-import { appCtx, body, check, fail, likePattern, log, paging, type AdminEnv } from './util';
+import { appCtx, body, check, fail, likePattern, log, paging, requireOwner, type AdminEnv } from './util';
 
 export const orderRoutes = new Hono<AdminEnv>();
 
@@ -57,11 +57,14 @@ orderRoutes.get('/orders/:id', async (c) => {
   const providerName = order.provider_id
     ? ((check(await db(c.env).from('providers').select('name').eq('id', order.provider_id).maybeSingle()) as { name: string } | null)?.name ?? null)
     : null;
+  // support sees the order flow, not credentials, costs or raw provider payloads (same as the list)
+  const isOwner = c.get('admin').role === 'owner';
+  const attemptRows = check(attempts) as Record<string, unknown>[];
   return c.json({
     ok: true,
-    order,
+    order: isOwner ? order : { ...order, delivery: order.delivery.map(() => '••••••'), cost_total: null },
     provider_name: providerName,
-    attempts: check(attempts),
+    attempts: isOwner ? attemptRows : attemptRows.map(({ request: _q, response: _r, ...rest }) => rest),
     user: check(user),
     deposits: check(deposits),
     tickets: check(tickets),
@@ -87,6 +90,7 @@ orderRoutes.post('/orders/:id/deliver', async (c) => {
 });
 
 orderRoutes.post('/orders/:id/refund', async (c) => {
+  requireOwner(c);
   const id = Number(c.req.param('id'));
   const b = await body(c, z.object({ amount: z.number().positive().nullable().optional(), note: z.string().max(500).nullable().optional() }));
   try {
@@ -162,6 +166,11 @@ orderRoutes.get('/deposits/:id', async (c) => {
 orderRoutes.post('/deposits/:id/approve', async (c) => {
   const id = c.req.param('id');
   const b = await body(c, z.object({ credit_usd: z.number().positive().optional() }));
+  const d = check(await db(c.env).from('deposits').select('status,amount_usd').eq('id', id).maybeSingle()) as Pick<DepositRow, 'status' | 'amount_usd'> | null;
+  if (!d) fail(404, 'Deposit not found');
+  // support may only confirm the requested amount of an open deposit; anything else is the owner's call
+  const customCredit = b.credit_usd != null && Math.abs(b.credit_usd - Number(d.amount_usd)) > 0.0001;
+  if (customCredit || !['pending', 'confirming'].includes(d.status)) requireOwner(c);
   const res = await approveManualDeposit(appCtx(c), id, c.get('admin').user_id, b.credit_usd);
   return c.json({ ok: true, result: res ?? null });
 });

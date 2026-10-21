@@ -331,7 +331,8 @@ catalogRoutes.get('/products/:id/stock', async (c) => {
   const items = check(res) as StockItemRow[];
   const admin = c.get('admin');
   // support staff never see sold credentials of other orders
-  const visible = admin.role === 'owner' ? items : items.map((i) => (i.status === 'sold' ? { ...i, content: '••••••' } : i));
+  // support can add stock and see counts, never read the items themselves
+  const visible = admin.role === 'owner' ? items : items.map((i) => ({ ...i, content: '••••••' }));
   return c.json({ ok: true, total: res.count ?? items.length, page, limit, items: visible });
 });
 

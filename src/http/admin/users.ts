@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import type { TicketRow, UserRow } from '../../types';
+import type { OrderRow, TicketRow, UserRow } from '../../types';
 import { db, dbErrorCode } from '../../lib/db';
 import { escapeHtml } from '../../lib/i18n';
 import { notifyUser } from '../../services/notify';
@@ -120,7 +120,9 @@ userRoutes.get('/tickets/:id', async (c) => {
     db(c.env).from('users').select('id,username,first_name,lang,balance').eq('id', ticket.user_id).maybeSingle(),
     ticket.order_id ? db(c.env).from('orders').select('*').eq('id', ticket.order_id).maybeSingle() : Promise.resolve({ data: null, error: null }),
   ]);
-  return c.json({ ok: true, ticket, user: check(user), order: check(order) });
+  const o = check(order) as OrderRow | null;
+  const masked = o && c.get('admin').role !== 'owner' ? { ...o, delivery: o.delivery.map(() => '••••••'), cost_total: null } : o;
+  return c.json({ ok: true, ticket, user: check(user), order: masked });
 });
 
 userRoutes.post('/tickets/:id/resolve', async (c) => {
@@ -132,6 +134,7 @@ userRoutes.post('/tickets/:id/resolve', async (c) => {
     replacement_text: z.string().optional(),
     refund_amount: z.number().positive().optional(),
   }));
+  if (b.resolution === 'refunded') requireOwner(c);
   const items = [...(b.replacement_items ?? []), ...(b.replacement_text ? b.replacement_text.split('\n') : [])].map((s) => s.trim()).filter(Boolean);
   const result = await resolveTicket(appCtx(c), id, b.resolution, {
     adminId: c.get('admin').user_id,

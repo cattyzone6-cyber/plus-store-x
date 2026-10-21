@@ -22,7 +22,8 @@ export const adminAuth: MiddlewareHandler<AdminEnv> = async (c, next) => {
     if (error || !data.user) return c.json({ ok: false, error: 'Session expired' }, 401);
     const user = data.user;
     let admin = must(await db(c.env).from('admins').select('*').eq('user_id', user.id).maybeSingle(), 'admin') as AdminRow | null;
-    const email = (user.email ?? '').toLowerCase();
+    // only a confirmed email may claim OWNER_EMAILS (sign-ups are disabled, but never trust an unverified claim)
+    const email = user.email_confirmed_at ? (user.email ?? '').toLowerCase() : '';
     if (!admin && email && ownerEmails(c.env.OWNER_EMAILS).includes(email)) {
       admin = must(
         await db(c.env).from('admins').insert({ user_id: user.id, email, role: 'owner' }).select('*').single(),

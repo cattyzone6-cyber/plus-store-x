@@ -361,6 +361,8 @@ export async function approveManualDeposit(app: AppCtx, depositId: string, admin
   const d = await getDeposit(app.env, depositId);
   if (!d) throw new DepositError('NOT_FOUND');
   if (d.status === 'paid') return d;
+  // rejected/cancelled/failed deposits stay closed; expired ones can still be approved (late payment)
+  if (!['pending', 'confirming', 'expired'].includes(d.status)) throw new DepositError('NOT_FOUND', {}, `Deposit is ${d.status}`);
   const credit = creditUsd != null && creditUsd > 0 ? creditUsd : Number(d.amount_usd);
   await creditDeposit(app, d.id, credit, { reviewedBy: adminId, meta: { approved_manually: true } });
   await audit(app.env, { admin_id: adminId, action: 'deposit.approve', entity: 'deposit', entity_id: d.id, data: { credit } });

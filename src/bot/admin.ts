@@ -65,6 +65,10 @@ export async function onAdminCallback(ctx: BotContext, data: string): Promise<vo
   if (!admin) return void (await answer(ctx, 'Admins only.', true));
   const [, action, idStr] = data.split(':');
   const { app } = ctx.st;
+  // money leaves the store only on the owner's decision
+  if (['refund', 'refund_ok', 'tk_ref'].includes(action) && admin.role !== 'owner') {
+    return void (await answer(ctx, 'Only the owner can refund.', true));
+  }
 
   try {
     switch (action) {
