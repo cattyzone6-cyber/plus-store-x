@@ -142,9 +142,9 @@ describe('dantehub orders', () => {
     expect(fn).not.toHaveBeenCalled();
   });
 
-  it('getOrder: 404 means the ref was never created', async () => {
+  it('getOrder: 404 keeps polling instead of failing (no automatic refund)', async () => {
     mockFetch(404, { ok: false, error: { code: 'not_found', message: 'none' } });
-    expect(await dantehub.getOrder(ctx(), 'PSX-X')).toMatchObject({ status: 'failed', retryable: true });
+    expect(await dantehub.getOrder(ctx(), 'PSX-X')).toMatchObject({ status: 'pending', provider_status: 'not_found' });
   });
 
   it('refs stay inside the allowed alphabet', () => {

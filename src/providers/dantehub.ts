@@ -244,9 +244,11 @@ export const dantehub: ProviderAdapter = {
       return mapDanteOrder(r.order, r, ctx.config);
     } catch (e) {
       rethrowRateLimit(e);
-      // our ref was never created (e.g. the purchase request timed out before reaching DanteHub): nothing charged
+      // 404 usually means the ref was never created, but it may also be a lagging read right after
+      // a timed-out purchase. Never auto-refund on it: keep polling; checkAwaitingOrder alerts an admin
+      // after many checks, who confirms at DanteHub before refunding.
       if (e instanceof ProviderError && e.status === 404) {
-        return { status: 'failed', provider_order_ref: providerOrderRef, provider_status: 'not_found', items: [], cost_usd: null, error: 'Order not found at DanteHub', retryable: true, raw: e.body ?? null };
+        return { status: 'pending', provider_order_ref: providerOrderRef, provider_status: 'not_found', items: [], cost_usd: null, raw: e.body ?? null };
       }
       throw e;
     }
