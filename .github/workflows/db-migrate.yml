@@ -36,7 +36,7 @@ jobs:
             echo "run=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         if: steps.check.outputs.run == 'true'
 
       - uses: supabase/setup-cli@v1
