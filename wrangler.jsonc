@@ -22,7 +22,9 @@
 
   // OWNER_EMAILS is a secret (not a var) so deploys never wipe it.
   "vars": {
-    "APP_ENV": "production"
+    "APP_ENV": "production",
+    // this client's Supabase project (public URL, not a secret)
+    "SUPABASE_URL": "https://rcvlrphlxqmyuneramwv.supabase.co"
   }
 
   // ── Optional (Workers Paid plan) ──────────────────────────────────────────
