@@ -24,4 +24,5 @@ Purchase results:
 Existing adapters:
 - `ventebot` — VenteBot Reseller API (Storebat).
 - `canboso` — Canboso Buyer API, shared by several stores (NovasGlobal, HitMeow…). Add one provider row per buyer key.
+- `dantehub` — DanteHub Partner API (DanteHubBot). Prices in USDT (treated 1:1 as USD). Orders are mostly fulfilled by hand at DanteHub, so they arrive later through polling. One delivery text per order, so products are limited to 1 unit per order unless `config.allow_multi_qty` is set. Products that need customer details are flagged as activation and are never ordered (the API cannot carry those details). Paid test products are hidden unless `config.include_test_products`.
   Order history never returns credentials, so only the purchase response can deliver accounts; orders completing later are slot/upgrade products that need none. If prices come in a non-USD currency, set `usd_rate` (local currency per 1 USD) in the provider config.

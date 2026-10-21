@@ -4,11 +4,13 @@ import type { ProviderAdapter, ProviderContext, ProviderCredentials } from './ty
 import { decryptJson } from '../lib/crypto';
 import { ventebot } from './ventebot';
 import { canboso } from './canboso';
+import { dantehub } from './dantehub';
 
 /** All provider types the store knows. Add new adapters here. */
 export const ADAPTERS: Record<string, ProviderAdapter> = {
   [ventebot.kind]: ventebot,
   [canboso.kind]: canboso,
+  [dantehub.kind]: dantehub,
 };
 
 export function getAdapter(kind: string): ProviderAdapter {
