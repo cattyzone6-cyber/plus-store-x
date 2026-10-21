@@ -1,0 +1,50 @@
+{
+  "ok": true,
+  "products": [
+    {
+      "id": "4a8a78c6-c146-4d56-8986-a41aa1a2c5fc",
+      "title": "(can be monetized) Upgrade X Premium 3 months full warranty",
+      "category": "X Premium",
+      "description": "Requirements:\nJust need to send your username or X profile link.\nThe account must be active, not locked/restricted.\nDo not already have an active Basic package or blue checkmark.\nNote:\nIf you have recently changed your name, username, profi",
+      "price": 14,
+      "currency": "USDT",
+      "in_stock": true
+    },
+    {
+      "id": "6faf700a-b13b-432a-8911-78fb9eafd4bb",
+      "title": "{pe:6305045014531548800}🥺 Autodesk All Apps | 3-Year License",
+      "category": "Autodesk",
+      "description": "🔥 Get access to 34+ professional Autodesk applications in one package!\nIncludes AutoCAD, Revit, 3ds Max, Maya, Civil 3D, Inventor, Fusion, Navisworks, Arnold, VRED, ReCap Pro and many more.\n\n⌛ License: 3 Years\n🎁 Special Offer — Limited Ti",
+      "price": 3.37,
+      "currency": "USDT",
+      "in_stock": true
+    },
+    {
+      "id": "27270de2-0482-41d5-ae50-beda4fd99ba4",
+      "title": "🔥ChatGPT GO 30D - full warranty",
+      "category": "ChatGPT",
+      "description": "👉 Format: Email | Password | 2FA\n👉 Warranty: 30 Days\n👉 Warranty Policy:\n- Warranty only applies if the account loses the GPT GO package\n- Accounts were carefully checked before being uploaded to the BOT, so NO WARRANTY FOR ANY OTHER CASE",
+      "price": 5.47,
+      "currency": "USDT",
+      "in_stock": true
+    },
+    {
+      "id": "b5bf0b6a-fe22-478d-bfea-c0c1223e1b0c",
+      "title": "Canva Pro — 30 Days",
+      "category": "Canva",
+      "description": null,
+      "price": 0.65,
+      "currency": "USD",
+      "in_stock": true
+    },
+    {
+      "id": "b665a651-4c58-4b3d-91ec-4692724a5031",
+      "title": "Test API for Developers",
+      "category": "Developer",
+      "description": "🧪 API connection test for developers.\n\nWhen you order and pay for this product, $0.01 is deducted from your wallet and a FAKE order is delivered to you instantly through the API (and webhook, if set).\n\nUse it to verify your API integration",
+      "price": 0.01,
+      "currency": "USDT",
+      "in_stock": true
+    }
+  ]
+}

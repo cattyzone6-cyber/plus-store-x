@@ -307,7 +307,7 @@ export async function fulfillOrder(app: AppCtx, orderId: number): Promise<void> 
     };
 
     if (result.status === 'completed') {
-      if (!result.items.length && pp.delivery_kind === 'instant') {
+      if (!result.items.length && pp.delivery_kind !== 'activation') {
         // paid at the provider but no credentials returned → a human must fetch them
         await patchOrder(env, order.id, common);
         await toManual(app, order, `${prov.name} completed order ${result.provider_order_ref ?? ''} without credentials — copy them from the provider`);
@@ -454,7 +454,8 @@ export async function checkAwaitingOrder(app: AppCtx, orderId: number): Promise<
   }
 
   if (result.status === 'completed') {
-    if (!result.items.length && pp?.delivery_kind === 'instant') {
+    // only activation products legitimately complete without items; anything else needs a human
+    if (!result.items.length && pp?.delivery_kind !== 'activation') {
       await patchOrder(env, order.id, { provider_status: result.provider_status });
       await toManual(app, order, `${prov.name} completed order ${order.provider_order_ref} without credentials — copy them from the provider`);
       return;
