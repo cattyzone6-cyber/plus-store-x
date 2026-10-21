@@ -1,8 +1,8 @@
 [
   {
-    "name": "owner1",
-    "branch": "client/owner1",
-    "repo": "OWNER_GITHUB/plus-store-x",
-    "deploy_key_secret": "DEPLOY_KEY_OWNER1"
+    "name": "cattyzone6",
+    "branch": "client/cattyzone6",
+    "repo": "cattyzone6-cyber/plus-store-x",
+    "deploy_key_secret": "DEPLOY_KEY_CATTYZONE6"
   }
 ]
