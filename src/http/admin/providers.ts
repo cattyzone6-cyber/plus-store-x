@@ -1,0 +1,289 @@
+import { Hono } from 'hono';
+import { z } from 'zod';
+import type { ProviderProductRow, ProviderRow } from '../../types';
+import { db } from '../../lib/db';
+import { decryptJson, encryptJson, mask } from '../../lib/crypto';
+import { ADAPTERS, getAdapter, providerContext } from '../../providers/registry';
+import type { ProviderCredentials } from '../../providers/types';
+import { syncProvider } from '../../services/sync';
+import { appCtx, body, check, fail, likePattern, log, paging, requireOwner, type AdminEnv } from './util';
+
+export const providerRoutes = new Hono<AdminEnv>();
+
+// Everything about providers is owner-only (tokens, costs).
+providerRoutes.use('/providers/*', async (c, next) => { requireOwner(c); await next(); });
+providerRoutes.use('/providers', async (c, next) => { requireOwner(c); await next(); });
+providerRoutes.use('/provider-products/*', async (c, next) => { requireOwner(c); await next(); });
+providerRoutes.use('/provider-products', async (c, next) => { requireOwner(c); await next(); });
+providerRoutes.use('/import', async (c, next) => { requireOwner(c); await next(); });
+
+async function publicProvider(env: AdminEnv['Bindings'], p: ProviderRow) {
+  const { credentials_enc, ...rest } = p;
+  let creds: ProviderCredentials | null = null;
+  try {
+    creds = await decryptJson<ProviderCredentials>(credentials_enc, env.ENCRYPTION_KEY);
+  } catch {
+    creds = null;
+  }
+  const adapter = ADAPTERS[p.kind];
+  const fields = adapter?.credentialFields ?? [{ key: 'api_key', label: 'API key', secret: true }];
+  return {
+    ...rest,
+    kind_label: adapter?.label ?? p.kind,
+    credentials: fields.map((f) => ({
+      key: f.key,
+      label: f.label,
+      secret: f.secret,
+      set: !!creds?.[f.key],
+      value: f.secret ? mask(creds?.[f.key]) : creds?.[f.key] ?? '',
+    })),
+  };
+}
+
+providerRoutes.get('/providers/kinds', (c) =>
+  c.json({
+    ok: true,
+    kinds: Object.values(ADAPTERS).map((a) => ({ kind: a.kind, label: a.label, defaultBaseUrl: a.defaultBaseUrl, credentialFields: a.credentialFields })),
+  }),
+);
+
+providerRoutes.get('/providers', async (c) => {
+  const rows = check(await db(c.env).from('providers').select('*').order('sort').order('name')) as ProviderRow[];
+  const counts = check(await db(c.env).from('provider_products').select('provider_id,is_removed,is_new')) as { provider_id: string; is_removed: boolean; is_new: boolean }[];
+  const stats = new Map<string, { total: number; removed: number; new: number }>();
+  for (const r of counts) {
+    const s = stats.get(r.provider_id) ?? { total: 0, removed: 0, new: 0 };
+    s.total++;
+    if (r.is_removed) s.removed++;
+    else if (r.is_new) s.new++;
+    stats.set(r.provider_id, s);
+  }
+  const providers = await Promise.all(rows.map(async (p) => ({ ...(await publicProvider(c.env, p)), products: stats.get(p.id) ?? { total: 0, removed: 0, new: 0 } })));
+  return c.json({ ok: true, providers });
+});
+
+const providerSchema = z.object({
+  name: z.string().min(1).max(80),
+  kind: z.string().min(1),
+  base_url: z.string().url(),
+  credentials: z.record(z.string(), z.string()).optional(),
+  enabled: z.boolean().optional(),
+  config: z.record(z.string(), z.unknown()).optional(),
+  sync_interval_minutes: z.number().int().min(1).max(1440).optional(),
+  low_balance_threshold: z.number().nullable().optional(),
+  sort: z.number().int().optional(),
+});
+
+providerRoutes.post('/providers', async (c) => {
+  const b = await body(c, providerSchema);
+  if (!ADAPTERS[b.kind]) fail(422, `Unknown provider kind ${b.kind}`);
+  const creds = Object.fromEntries(Object.entries(b.credentials ?? {}).filter(([, v]) => v.trim() !== '').map(([k, v]) => [k, v.trim()]));
+  const row = check(
+    await db(c.env).from('providers').insert({
+      name: b.name,
+      kind: b.kind,
+      base_url: b.base_url.replace(/\/+$/, ''),
+      credentials_enc: Object.keys(creds).length ? await encryptJson(creds, c.env.ENCRYPTION_KEY) : null,
+      enabled: b.enabled ?? true,
+      config: b.config ?? {},
+      sync_interval_minutes: b.sync_interval_minutes ?? 10,
+      low_balance_threshold: b.low_balance_threshold ?? null,
+      sort: b.sort ?? 0,
+    }).select('*').single(),
+  ) as ProviderRow;
+  await log(c, 'provider.create', 'provider', row.id, { name: row.name, kind: row.kind });
+  return c.json({ ok: true, provider: await publicProvider(c.env, row) });
+});
+
+providerRoutes.patch('/providers/:id', async (c) => {
+  const id = c.req.param('id');
+  const b = await body(c, providerSchema.partial());
+  const current = check(await db(c.env).from('providers').select('*').eq('id', id).maybeSingle()) as ProviderRow | null;
+  if (!current) fail(404, 'Provider not found');
+  const patch: Record<string, unknown> = {};
+  for (const k of ['name', 'enabled', 'config', 'sync_interval_minutes', 'low_balance_threshold', 'sort'] as const) {
+    if (b[k] !== undefined) patch[k] = b[k];
+  }
+  if (b.base_url) patch.base_url = b.base_url.replace(/\/+$/, '');
+  if (b.kind && b.kind !== current.kind) {
+    if (!ADAPTERS[b.kind]) fail(422, `Unknown provider kind ${b.kind}`);
+    patch.kind = b.kind;
+  }
+  if (b.credentials) {
+    // empty value = keep the existing secret
+    const existing = (await decryptJson<ProviderCredentials>(current.credentials_enc, c.env.ENCRYPTION_KEY).catch(() => null)) ?? {};
+    const merged: Record<string, string> = { ...existing };
+    for (const [k, v] of Object.entries(b.credentials)) if (v.trim() !== '') merged[k] = v.trim();
+    patch.credentials_enc = await encryptJson(merged, c.env.ENCRYPTION_KEY);
+    patch.rate_limited_until = null;
+  }
+  if (b.low_balance_threshold !== undefined) patch.low_balance_notified = false;
+  const row = check(await db(c.env).from('providers').update(patch).eq('id', id).select('*').single()) as ProviderRow;
+  await log(c, 'provider.update', 'provider', id, { ...patch, credentials_enc: patch.credentials_enc ? '[updated]' : undefined });
+  return c.json({ ok: true, provider: await publicProvider(c.env, row) });
+});
+
+providerRoutes.delete('/providers/:id', async (c) => {
+  const id = c.req.param('id');
+  check(await db(c.env).from('providers').delete().eq('id', id));
+  await log(c, 'provider.delete', 'provider', id);
+  return c.json({ ok: true });
+});
+
+providerRoutes.post('/providers/:id/test', async (c) => {
+  const id = c.req.param('id');
+  const row = check(await db(c.env).from('providers').select('*').eq('id', id).maybeSingle()) as ProviderRow | null;
+  if (!row) fail(404, 'Provider not found');
+  try {
+    const info = await getAdapter(row.kind).getBalance(await providerContext(c.env, row));
+    await db(c.env).from('providers').update({
+      balance: info.balance_usd,
+      balance_currency: 'USD',
+      balance_checked_at: new Date().toISOString(),
+      low_balance_notified: false,
+    }).eq('id', id);
+    return c.json({ ok: true, balance: info });
+  } catch (e) {
+    return c.json({ ok: false, error: (e as Error).message }, 502);
+  }
+});
+
+providerRoutes.post('/providers/:id/sync', async (c) => {
+  const id = c.req.param('id');
+  try {
+    const stats = await syncProvider(appCtx(c), id);
+    await log(c, 'provider.sync', 'provider', id);
+    return c.json({ ok: true, stats });
+  } catch (e) {
+    return c.json({ ok: false, error: (e as Error).message }, 502);
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Provider catalog browser
+// ─────────────────────────────────────────────────────────────────────────────
+
+const PP_LIST_COLUMNS =
+  'id,provider_id,external_id,name,description,image_url,emoji,delivery_kind,raw_type,cost,cost_original,cost_currency,stock,sold,warranty_days,requirements,price_tiers,is_available,is_removed,is_new,first_seen_at,last_seen_at,last_changed_at,removed_at';
+
+async function linksFor(env: AdminEnv['Bindings'], ids: string[]): Promise<Map<string, { product_id: string; product_name: string }[]>> {
+  const map = new Map<string, { product_id: string; product_name: string }[]>();
+  if (!ids.length) return map;
+  const rows = check(await db(env).rpc('admin_pp_links', { p_ids: ids })) as { provider_product_id: string; product_id: string; product_name: string }[];
+  for (const r of rows) {
+    const list = map.get(r.provider_product_id) ?? [];
+    list.push({ product_id: r.product_id, product_name: r.product_name });
+    map.set(r.provider_product_id, list);
+  }
+  return map;
+}
+
+providerRoutes.get('/providers/:id/products', async (c) => {
+  const id = c.req.param('id');
+  const filter = c.req.query('filter') ?? 'all'; // all | new | removed | linked | unlinked | available
+  const q = c.req.query('q')?.trim();
+  const { page, limit, from } = paging(c, 50);
+
+  let query = db(c.env).from('provider_products').select(PP_LIST_COLUMNS).eq('provider_id', id).order('name');
+  if (q) query = query.ilike('name', likePattern(q));
+  if (filter === 'new') query = query.eq('is_new', true).eq('is_removed', false);
+  if (filter === 'removed') query = query.eq('is_removed', true);
+  if (filter === 'available') query = query.eq('is_available', true).eq('is_removed', false);
+  const rows = check(await query) as ProviderProductRow[];
+  const links = await linksFor(c.env, rows.map((r) => r.id));
+  let list = rows.map((r) => ({ ...r, links: links.get(r.id) ?? [] }));
+  if (filter === 'linked') list = list.filter((r) => r.links.length);
+  if (filter === 'unlinked') list = list.filter((r) => !r.links.length && !r.is_removed);
+  return c.json({ ok: true, total: list.length, page, limit, items: list.slice(from, from + limit) });
+});
+
+/** Search provider products across all providers (product editor → add source). */
+providerRoutes.get('/provider-products', async (c) => {
+  const q = c.req.query('q')?.trim();
+  let query = db(c.env).from('provider_products').select(`${PP_LIST_COLUMNS}`).eq('is_removed', false).order('name').limit(60);
+  if (q) query = query.ilike('name', likePattern(q));
+  const providerId = c.req.query('provider_id');
+  if (providerId) query = query.eq('provider_id', providerId);
+  const rows = check(await query) as ProviderProductRow[];
+  const providers = check(await db(c.env).from('providers').select('id,name')) as { id: string; name: string }[];
+  const names = new Map(providers.map((p) => [p.id, p.name]));
+  return c.json({ ok: true, items: rows.map((r) => ({ ...r, provider_name: names.get(r.provider_id) ?? '' })) });
+});
+
+providerRoutes.get('/provider-products/:id', async (c) => {
+  const row = check(await db(c.env).from('provider_products').select('*').eq('id', c.req.param('id')).maybeSingle());
+  if (!row) fail(404, 'Not found');
+  return c.json({ ok: true, item: row });
+});
+
+providerRoutes.post('/provider-products/mark-seen', async (c) => {
+  const b = await body(c, z.object({ ids: z.array(z.string().uuid()).optional(), provider_id: z.string().uuid().optional() }));
+  let q = db(c.env).from('provider_products').update({ is_new: false });
+  if (b.ids?.length) q = q.in('id', b.ids);
+  else if (b.provider_id) q = q.eq('provider_id', b.provider_id);
+  else fail(422, 'ids or provider_id required');
+  check(await q);
+  return c.json({ ok: true });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Import provider products into the store
+// ─────────────────────────────────────────────────────────────────────────────
+
+const EMOJI_RE = /\p{Extended_Pictographic}/u;
+
+function productFromPP(pp: ProviderProductRow, categoryId: string | null) {
+  return {
+    category_id: categoryId,
+    name_en: pp.name,
+    description_en: pp.description,
+    image_url: pp.image_url,
+    emoji: pp.emoji && EMOJI_RE.test(pp.emoji) ? pp.emoji : null,
+    warranty_days: pp.warranty_days ?? 0,
+    pricing_mode: 'markup',
+    auto_sync_info: true,
+  };
+}
+
+providerRoutes.post('/import', async (c) => {
+  const b = await body(c, z.object({
+    provider_product_ids: z.array(z.string().uuid()).min(1).max(200),
+    category_id: z.string().uuid().nullable().optional(),
+    mode: z.enum(['separate', 'group']),
+    product_id: z.string().uuid().optional(),
+    routing: z.enum(['priority', 'cheapest']).optional(),
+  }));
+  const pps = check(await db(c.env).from('provider_products').select('*').in('id', b.provider_product_ids)) as ProviderProductRow[];
+  if (!pps.length) fail(404, 'Provider products not found');
+  // keep the order the admin selected
+  const order = new Map(b.provider_product_ids.map((id, i) => [id, i]));
+  pps.sort((a, b2) => (order.get(a.id) ?? 0) - (order.get(b2.id) ?? 0));
+
+  const created: string[] = [];
+  if (b.mode === 'separate') {
+    for (const pp of pps) {
+      const product = check(await db(c.env).from('products').insert(productFromPP(pp, b.category_id ?? null)).select('id').single()) as { id: string };
+      check(await db(c.env).from('product_sources').insert({ product_id: product.id, kind: 'provider', provider_product_id: pp.id, priority: 0 }));
+      created.push(product.id);
+    }
+  } else {
+    let productId = b.product_id;
+    if (!productId) {
+      const product = check(await db(c.env).from('products').insert({ ...productFromPP(pps[0], b.category_id ?? null), routing: b.routing ?? 'priority' }).select('id').single()) as { id: string };
+      productId = product.id;
+      created.push(productId);
+    } else if (b.routing) {
+      check(await db(c.env).from('products').update({ routing: b.routing }).eq('id', productId));
+    }
+    const existing = check(await db(c.env).from('product_sources').select('priority,provider_product_id').eq('product_id', productId)) as { priority: number; provider_product_id: string | null }[];
+    const have = new Set(existing.map((e) => e.provider_product_id));
+    let prio = existing.reduce((m, e) => Math.max(m, e.priority), -1) + 1;
+    const rows = pps.filter((pp) => !have.has(pp.id)).map((pp) => ({ product_id: productId!, kind: 'provider', provider_product_id: pp.id, priority: prio++ }));
+    if (rows.length) check(await db(c.env).from('product_sources').insert(rows));
+    if (!created.length) created.push(productId);
+  }
+
+  check(await db(c.env).from('provider_products').update({ is_new: false }).in('id', pps.map((p) => p.id)));
+  await log(c, 'catalog.import', 'products', created.join(','), { mode: b.mode, count: pps.length });
+  return c.json({ ok: true, product_ids: created });
+});

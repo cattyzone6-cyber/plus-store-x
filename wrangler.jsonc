@@ -1,0 +1,39 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // Each client deployment (branch) only needs to change "name" (and optionally routes).
+  "name": "plus-store-x",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // Static files: landing assets in /public/assets, admin panel build in /public/admin
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "not_found_handling": "none"
+  },
+
+  // One cron every minute; the worker decides internally what is due (sync, polling, giveaways...)
+  "triggers": {
+    "crons": ["* * * * *"]
+  },
+
+  "observability": { "enabled": true },
+
+  // OWNER_EMAILS is a secret (not a var) so deploys never wipe it.
+  "vars": {
+    "APP_ENV": "production"
+  }
+
+  // ── Optional (Workers Paid plan) ──────────────────────────────────────────
+  // Create the queue first:  npx wrangler queues create plus-store-x-jobs
+  // then uncomment, deploy, and switch "System → Plan" to "paid" in the admin panel.
+  // "queues": {
+  //   "producers": [{ "binding": "JOBS", "queue": "plus-store-x-jobs" }],
+  //   "consumers": [{ "queue": "plus-store-x-jobs", "max_batch_size": 10, "max_retries": 3 }]
+  // }
+
+  // ── Secrets (set with `npx wrangler secret put NAME` or in the Cloudflare dashboard) ──
+  // TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
+  // SUPABASE_ANON_KEY, ENCRYPTION_KEY, OWNER_EMAILS (comma separated emails always treated as owner)
+}

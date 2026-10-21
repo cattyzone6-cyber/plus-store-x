@@ -1,0 +1,11 @@
+# Copy to .dev.vars for local development (never commit .dev.vars)
+TELEGRAM_BOT_TOKEN=123456:ABC
+# Any random string; Telegram sends it back in X-Telegram-Bot-Api-Secret-Token
+TELEGRAM_WEBHOOK_SECRET=change-me-random-string
+SUPABASE_URL=http://127.0.0.1:54321
+SUPABASE_SERVICE_ROLE_KEY=your-local-service-role-key
+SUPABASE_ANON_KEY=your-local-anon-key
+# 32 random bytes, base64. Generate with: npm run gen:key
+ENCRYPTION_KEY=
+OWNER_EMAILS=you@example.com
+APP_ENV=development

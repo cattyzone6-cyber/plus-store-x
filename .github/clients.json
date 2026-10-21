@@ -1,0 +1,8 @@
+[
+  {
+    "name": "owner1",
+    "branch": "client/owner1",
+    "repo": "OWNER_GITHUB/plus-store-x",
+    "deploy_key_secret": "DEPLOY_KEY_OWNER1"
+  }
+]

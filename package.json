@@ -1,0 +1,39 @@
+{
+  "name": "plus-store-x",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Telegram digital store bot (multi-provider) on Cloudflare Workers + Supabase, with admin panel and landing page",
+  "type": "module",
+  "workspaces": [
+    "admin"
+  ],
+  "scripts": {
+    "build": "npm run build -w admin",
+    "dev": "wrangler dev",
+    "dev:poll": "node scripts/dev-poll.mjs",
+    "dev:admin": "npm run dev -w admin",
+    "deploy": "npm run build && wrangler deploy",
+    "typecheck": "tsc --noEmit && npm run typecheck -w admin",
+    "test": "vitest run",
+    "db:start": "supabase start",
+    "db:reset": "supabase db reset",
+    "db:push": "supabase db push",
+    "gen:key": "node scripts/gen-key.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.118.0",
+    "grammy": "^1.46.0",
+    "hono": "^4.13.13",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261021.1",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.5",
+    "wrangler": "^4.151.3"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "workerd@1.20261019.1": true
+  }
+}

@@ -1,0 +1,89 @@
+# Mirrors a client branch of the coder's repo to that client's own GitHub repo (main).
+# The client's Cloudflare Workers Builds then deploys automatically.
+#
+#   coder repo (GH-ZX/plus-store-x)        client repo (OWNER/plus-store-x)
+#   branch client/<name>  ── push ──▶  main  ── Workers Builds ──▶ Cloudflare
+#
+# Configure clients in .github/clients.json and store each client's PRIVATE deploy key
+# as a repository secret (name = deploy_key_secret). The client's main branch is
+# force-updated to match the client branch exactly: clients must not commit to it.
+# Only the pushed client branch is ever sent; main and other clients' branches never leave this repo.
+
+name: Sync client repo
+
+on:
+  push:
+    branches:
+      - 'client/**'
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Client branch to mirror (e.g. client/owner1)'
+        required: true
+
+concurrency:
+  group: sync-${{ github.event.inputs.branch || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.pick.outputs.matrix }}
+      found: ${{ steps.pick.outputs.found }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/clients.json
+          sparse-checkout-cone-mode: false
+
+      - id: pick
+        env:
+          BRANCH: ${{ github.event.inputs.branch || github.ref_name }}
+        run: |
+          matrix=$(jq -c --arg b "$BRANCH" '[.[] | select(.branch == $b)]' .github/clients.json)
+          count=$(echo "$matrix" | jq 'length')
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          if [ "$count" -eq 0 ]; then
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No client configured for branch $BRANCH in .github/clients.json — nothing to sync."
+          else
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  push:
+    needs: plan
+    if: needs.plan.outputs.found == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        client: ${{ fromJson(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.client.branch }}
+          fetch-depth: 0
+
+      - name: Push to client repo
+        env:
+          DEPLOY_KEY: ${{ secrets[matrix.client.deploy_key_secret] }}
+          TARGET_REPO: ${{ matrix.client.repo }}
+          SOURCE_BRANCH: ${{ matrix.client.branch }}
+        run: |
+          if [ -z "$DEPLOY_KEY" ]; then
+            echo "::error::Secret ${{ matrix.client.deploy_key_secret }} is not set for client ${{ matrix.client.name }}"
+            exit 1
+          fi
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/client_key
+          chmod 600 ~/.ssh/client_key
+          ssh-keyscan -t ed25519,rsa github.com >> ~/.ssh/known_hosts 2>/dev/null
+          export GIT_SSH_COMMAND="ssh -i ~/.ssh/client_key -o IdentitiesOnly=yes"
+          git remote add client "git@github.com:${TARGET_REPO}.git"
+          git push --force client "HEAD:refs/heads/main"
+          echo "::notice::Mirrored $SOURCE_BRANCH → $TARGET_REPO@main ($(git rev-parse --short HEAD))"
+
+      - name: Clean up key
+        if: always()
+        run: rm -f ~/.ssh/client_key

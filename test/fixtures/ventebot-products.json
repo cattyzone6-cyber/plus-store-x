@@ -1,0 +1,89 @@
+{
+ "success": true,
+ "products": [
+  {
+   "id": 28,
+   "name": "Gemini 18 Months",
+   "description": "🤖  GEMINI AI PRO 18M [NW]\n⭐️ Gemini AI Pro 18 Months\n✦ 🚫 Card-free activation\n✦ ⏩ 5TB Google One cloud storage\n✦ 🚀 No VPN required.\n✦ 24h hold warranty",
+   "emoji": "🤖",
+   "image_url": "https://i.postimg.cc/cCPbmkbc/photo-2026-05-09-16-07-18.jpg",
+   "price_usd": 0.58,
+   "warranty_days": 0,
+   "delivery_type": "stock",
+   "api_test": false,
+   "stock": 2475,
+   "price_tiers": [
+    {
+     "min_qty": 1,
+     "max_qty": 50,
+     "price_usd": 0.58
+    },
+    {
+     "min_qty": 51,
+     "max_qty": 99,
+     "price_usd": 0.57
+    },
+    {
+     "min_qty": 100,
+     "max_qty": 199,
+     "price_usd": 0.56
+    },
+    {
+     "min_qty": 200,
+     "max_qty": 1000,
+     "price_usd": 0.55
+    }
+   ],
+   "pricing_type": "standard"
+  },
+  {
+   "id": 19,
+   "name": "Coursera Premium 12 Months",
+   "description": "• Org+ Premium Access\n• All Courses & Certificates\n• Mail | Password | 2FA\n• Warranty 7 days\n• Use https://2fa.live/ for 2FA codes",
+   "emoji": "📦",
+   "image_url": null,
+   "price_usd": 1.95,
+   "warranty_days": 0,
+   "delivery_type": "supplier_api",
+   "api_test": false,
+   "stock": 27,
+   "price_tiers": [],
+   "pricing_type": "standard"
+  },
+  {
+   "id": 999999,
+   "name": "API test product",
+   "description": "🤖  GEMINI AI PRO 18M [NW]\n⭐️ Gemini AI Pro 18 Months\n✦ 🚫 Card-free activation\n✦ ⏩ 5TB Google One cloud storage\n✦ 🚀 No VPN required.\n✦ 24h hold warranty",
+   "emoji": "🤖",
+   "image_url": "https://i.postimg.cc/cCPbmkbc/photo-2026-05-09-16-07-18.jpg",
+   "price_usd": 0.58,
+   "warranty_days": 0,
+   "delivery_type": "api_test",
+   "api_test": true,
+   "stock": 2475,
+   "price_tiers": [
+    {
+     "min_qty": 1,
+     "max_qty": 50,
+     "price_usd": 0.58
+    },
+    {
+     "min_qty": 51,
+     "max_qty": 99,
+     "price_usd": 0.57
+    },
+    {
+     "min_qty": 100,
+     "max_qty": 199,
+     "price_usd": 0.56
+    },
+    {
+     "min_qty": 200,
+     "max_qty": 1000,
+     "price_usd": 0.55
+    }
+   ],
+   "pricing_type": "standard"
+  }
+ ]
+}

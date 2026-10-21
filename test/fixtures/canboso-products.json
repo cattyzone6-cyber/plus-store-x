@@ -1,0 +1,86 @@
+{
+ "success": true,
+ "lang": "en",
+ "walletCurrency": "USD",
+ "products": [
+  {
+   "productId": "6ad6e08df5f462cfb506157e",
+   "name": "CAPCUT PRO PERSONAL 30D full warranty",
+   "description": "CAPCUT PRO PERSONAL 30DAYS - FULL WARRANTY\n\n-FORMAT: Username|Password\n\nNo warranty for FREQUENT ACCESS ERRORS\n\nLOGIN ON 2 DEVICES (Phone - PC)",
+   "emoji": "capcut",
+   "productType": "account",
+   "price": {
+    "amount": 2.1,
+    "currency": "USD",
+    "text": "$2.10"
+   },
+   "availability": {
+    "available": 6,
+    "sold": 3563
+   },
+   "promotions": []
+  },
+  {
+   "productId": "6acb0021fac01298227bf632",
+   "name": "📌Slot ChatGPT Business Premium 1 month with 24-hour warranty",
+   "description": "This is a ChatGPT Business 1-month Premium plan slot, with a quota 5 times higher than the standard or plus plan usage. Note: the product may expire in a few days.",
+   "emoji": "chatgpt",
+   "productType": "slot",
+   "price": {
+    "amount": 38.09,
+    "currency": "USD",
+    "text": "$38.09"
+   },
+   "availability": {
+    "available": 8,
+    "sold": 0
+   },
+   "promotions": [],
+   "purchaseRequirements": {
+    "customerEmail": true,
+    "quantityFixed": 1
+   }
+  },
+  {
+   "productId": "6ab28f922d45b71acbec9aed",
+   "name": "Spotify Premium Family account, original owner, 3-month slot, full warranty",
+   "description": "✅ Customers send Email + Password to upgrade to Spotify Premium\n✅ Full package usage warranty\n✅ Outstanding features of Spotify Premium:\n- Listen to music without ads\n- Download music for offline listening\n- Choose and play songs freely\n- High-quality sound\n- Arrange playback queues\n- Listen to music with friends in real time",
+   "emoji": "spotify",
+   "productType": "upgrade_account",
+   "price": {
+    "amount": 4.96,
+    "currency": "USD",
+    "text": "$4.96"
+   },
+   "availability": {
+    "available": 8,
+    "sold": 42
+   },
+   "promotions": [],
+   "purchaseRequirements": {
+    "customerAccounts": true
+   }
+  },
+  {
+   "productId": "6ab20bc1f6d40479fdf63286",
+   "name": "CANVA PRO EDU SLOT 3 YEARS warranty 1 YEAR",
+   "description": "Upgrade directly on your Email. After successful payment, please provide your Gmail for the Admin to proceed with the upgrade. 1-year warrantym.Mua then wait until there is a completion notification, do not spam the Admin. - THIS IS AN EDUCATIONAL CANVA SLOT",
+   "emoji": "canva",
+   "productType": "slot",
+   "price": {
+    "amount": 0.45,
+    "currency": "USD",
+    "text": "$0.45"
+   },
+   "availability": {
+    "available": null,
+    "sold": 0
+   },
+   "promotions": [],
+   "purchaseRequirements": {
+    "customerEmail": true,
+    "quantityFixed": 1
+   }
+  }
+ ]
+}

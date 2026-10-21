@@ -1,0 +1,17 @@
+node_modules/
+.wrangler/
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+.env
+.env.*
+!.env.example
+dist/
+public/admin/
+supabase/.temp/
+supabase/.branches/
+*.log
+.DS_Store
+coverage/
+# reference screenshots, not part of the product
+AssetsToStart/

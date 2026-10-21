@@ -1,0 +1,46 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply bg-ink-950 text-zinc-100 antialiased;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #33333c transparent;
+}
+
+@layer components {
+  .card {
+    @apply rounded-xl border border-ink-700 bg-ink-850;
+  }
+  .label {
+    @apply mb-1 block text-xs font-medium uppercase tracking-wide text-ink-400;
+  }
+  .input {
+    @apply w-full rounded-lg border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-zinc-100 placeholder:text-ink-400 outline-none transition focus:border-gold focus:ring-1 focus:ring-gold/40 disabled:opacity-50;
+  }
+  .th {
+    @apply whitespace-nowrap px-3 py-2 text-start text-xs font-semibold uppercase tracking-wide text-ink-400;
+  }
+  .td {
+    @apply px-3 py-2 align-middle text-sm;
+  }
+  .gold-text {
+    background: linear-gradient(180deg, #ffe08a, #f5b301 55%, #b88600);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+}
