@@ -1,6 +1,7 @@
 import { lazy, Suspense, type ReactNode } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './lib/auth';
+import { useTx } from './lib/i18n';
 import { Layout } from './components/Layout';
 import { Loading } from './components/ui';
 import { Login } from './pages/Login';
@@ -8,6 +9,7 @@ import { Login } from './pages/Login';
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Providers = lazy(() => import('./pages/Providers'));
 const ProviderCatalog = lazy(() => import('./pages/ProviderCatalog'));
+const Catalog = lazy(() => import('./pages/Catalog'));
 const Categories = lazy(() => import('./pages/Categories'));
 const Products = lazy(() => import('./pages/Products'));
 const ProductEditor = lazy(() => import('./pages/ProductEditor'));
@@ -26,7 +28,8 @@ const System = lazy(() => import('./pages/System'));
 
 function OwnerOnly({ children }: { children: ReactNode }) {
   const { admin } = useAuth();
-  if (admin?.role !== 'owner') return <div className="card p-6 text-sm text-ink-400">Only the store owner can open this page.</div>;
+  const tx = useTx();
+  if (admin?.role !== 'owner') return <div className="card p-6 text-sm text-ink-400">{tx('Only the store owner can open this page.', 'هذه الصفحة لمالك المتجر فقط.')}</div>;
   return <>{children}</>;
 }
 
@@ -42,6 +45,7 @@ export function App() {
           <Route index element={<Dashboard />} />
           <Route path="providers" element={<OwnerOnly><Providers /></OwnerOnly>} />
           <Route path="providers/:id" element={<OwnerOnly><ProviderCatalog /></OwnerOnly>} />
+          <Route path="catalog" element={<Catalog />} />
           <Route path="categories" element={<Categories />} />
           <Route path="products" element={<Products />} />
           <Route path="products/:id" element={<ProductEditor />} />

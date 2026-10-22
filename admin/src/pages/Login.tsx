@@ -5,7 +5,7 @@ import { Button, ErrorBox, Input } from '../components/ui';
 
 export function Login({ error }: { error?: string | null }) {
   const { config, signIn, signOut, session, error: cfgError } = useAuth();
-  const { t, lang, setLang } = useT();
+  const { t, tx, lang, setLang } = useT();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -32,23 +32,23 @@ export function Login({ error }: { error?: string | null }) {
           <img src={config?.logoUrl || '/assets/logo.jpg'} alt="" className="h-16 w-16 rounded-2xl object-cover ring-1 ring-gold/40" />
           <div>
             <div className="gold-text text-lg font-bold">{config?.brandName ?? 'Store'}</div>
-            <div className="text-xs uppercase tracking-widest text-ink-400">Admin panel</div>
+            <div className="text-xs uppercase tracking-widest text-ink-400">{tx('Admin panel', 'لوحة الإدارة')}</div>
           </div>
         </div>
         {!config && cfgError && <div className="mb-4"><ErrorBox error={cfgError} /></div>}
         {session && error && (
           <div className="mb-4 space-y-2">
             <ErrorBox error={error} />
-            <Button type="button" variant="ghost" size="sm" onClick={() => void signOut()}>Use another account</Button>
+            <Button type="button" variant="ghost" size="sm" onClick={() => void signOut()}>{tx('Use another account', 'استخدم حساباً آخر')}</Button>
           </div>
         )}
         <label className="label">{t('email')}</label>
-        <Input type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required className="mb-3" />
+        <Input type="email" dir="ltr" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required className="mb-3" />
         <label className="label">{t('password')}</label>
-        <Input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required className="mb-4" />
+        <Input type="password" dir="ltr" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required className="mb-4" />
         {err && <div className="mb-3"><ErrorBox error={err} /></div>}
         <Button type="submit" variant="primary" className="w-full" loading={busy} disabled={!config}>{t('signin')}</Button>
-        <button type="button" onClick={() => setLang(lang === 'en' ? 'ar' : 'en')} className="mt-4 w-full text-center text-xs text-ink-400 hover:text-white">{t('language')}</button>
+        <button type="button" onClick={() => setLang(lang === 'en' ? 'ar' : 'en')} className="mt-2 min-h-10 w-full text-center text-xs text-ink-400 hover:text-white">{t('language')}</button>
       </form>
     </div>
   );

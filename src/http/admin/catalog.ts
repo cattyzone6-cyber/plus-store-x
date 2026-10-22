@@ -1,9 +1,11 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import type { CategoryRow, ProductRow, ProductSourceRow, StockItemRow } from '../../types';
+import type { CategoryRow, ProductGroupRow, ProductRow, ProductSourceRow, StockItemRow } from '../../types';
 import { db } from '../../lib/db';
 import { getSettings } from '../../lib/settings';
-import { loadOptions } from '../../services/catalog';
+import { loadOptions, viewProducts, type ProductView } from '../../services/catalog';
+import { cleanProviderName } from '../../lib/names';
+import { acceptPendingCost } from '../../services/price-guards';
 import { priceProduct, requiredInputs } from '../../services/pricing';
 import { SYNCABLE_FIELDS } from '../../services/sync-fields';
 import { markRestocked } from '../../services/alerts';
@@ -127,10 +129,46 @@ const productSchema = z.object({
   auto_sync_info: z.boolean().optional(),
   delivery_note_en: z.string().max(2000).nullable().optional(),
   delivery_note_ar: z.string().max(2000).nullable().optional(),
+  group_id: z.string().uuid().nullable().optional(),
+  min_margin_percent: z.number().min(0).max(1000).nullable().optional(),
+  pinned: z.boolean().optional(),
 });
 
 // Support staff may only touch these product fields; pricing/sources stay with the owner.
-const PRICING_FIELDS = ['pricing_mode', 'markup_percent', 'markup_fixed', 'manual_price', 'base_cost', 'compare_at_price', 'sale_percent', 'qty_discounts', 'routing', 'on_failure'];
+const PRICING_FIELDS = ['pricing_mode', 'markup_percent', 'markup_fixed', 'manual_price', 'base_cost', 'compare_at_price', 'sale_percent', 'qty_discounts', 'routing', 'on_failure', 'min_margin_percent'];
+
+/** A pack moved into a product (group) also moves to that product's category. */
+async function withGroupCategory<T extends { group_id?: string | null; category_id?: string | null }>(env: Parameters<typeof db>[0], b: T): Promise<T> {
+  if (!b.group_id || b.category_id !== undefined) return b;
+  const g = check(await db(env).from('product_groups').select('category_id').eq('id', b.group_id).maybeSingle()) as { category_id: string | null } | null;
+  if (!g) fail(404, 'Product not found');
+  return { ...b, category_id: g.category_id };
+}
+
+/** Pack list item (also used by the group endpoints). */
+function packItem(v: ProductView, groupNames?: Map<string, string>) {
+  const p = v.product;
+  const pr = v.pricing;
+  return {
+    ...p,
+    group_name: p.group_id ? groupNames?.get(p.group_id) ?? null : null,
+    price: pr.unitPrice,
+    original_price: pr.originalUnitPrice,
+    reference_cost: pr.referenceCost,
+    available: pr.available,
+    sold_out: pr.soldOut,
+    sources: pr.options.map((o) => ({ kind: o.source.kind, usable: o.usable, provider: o.provider?.name ?? null })),
+  };
+}
+
+/** Packs inside a group: sold-out last, pinned first, then the owner's order and natural name order. */
+function sortPacks<T extends { product: ProductRow; pricing: { soldOut: boolean } }>(views: T[]): T[] {
+  return [...views].sort((a, b) =>
+    Number(a.pricing.soldOut) - Number(b.pricing.soldOut)
+    || Number(b.product.pinned) - Number(a.product.pinned)
+    || a.product.sort - b.product.sort
+    || a.product.name_en.localeCompare(b.product.name_en, undefined, { numeric: true }));
+}
 
 catalogRoutes.get('/products', async (c) => {
   const s = await getSettings(c.env);
@@ -144,21 +182,17 @@ catalogRoutes.get('/products', async (c) => {
   const active = c.req.query('active');
   if (active === 'true') q = q.eq('is_active', true);
   if (active === 'false') q = q.eq('is_active', false);
+  if (c.req.query('paused') === '1') q = q.not('paused_reason', 'is', null);
+  const group = c.req.query('group_id');
+  if (group === 'none') q = q.is('group_id', null);
+  else if (group) q = q.eq('group_id', group);
   const res = await q.range(from, to);
   const rows = check(res) as ProductRow[];
-  const opts = await loadOptions(c.env, rows);
-  const items = rows.map((p) => {
-    const pr = priceProduct(p, opts.get(p.id) ?? [], s, null);
-    return {
-      ...p,
-      price: pr.unitPrice,
-      original_price: pr.originalUnitPrice,
-      reference_cost: pr.referenceCost,
-      available: pr.available,
-      sold_out: pr.soldOut,
-      sources: (opts.get(p.id) ?? []).map((o) => ({ kind: o.source.kind, usable: o.usable, provider: o.provider?.name ?? null })),
-    };
-  });
+  const views = await viewProducts(c.env, s, rows, null);
+  const groupIds = [...new Set(rows.map((r) => r.group_id).filter(Boolean) as string[])];
+  const groups = groupIds.length ? (check(await db(c.env).from('product_groups').select('id,name_en').in('id', groupIds)) as { id: string; name_en: string }[]) : [];
+  const groupNames = new Map(groups.map((g) => [g.id, g.name_en]));
+  const items = views.map((v) => packItem(v, groupNames));
   return c.json({ ok: true, total: res.count ?? items.length, page, limit, items });
 });
 
@@ -185,6 +219,8 @@ catalogRoutes.get('/products/:id', async (c) => {
       available: pr.available,
       sold_out: pr.soldOut,
       sale_percent: pr.salePercent,
+      min_margin_percent: pr.minMarginPercent,
+      paused: pr.paused,
     },
     sources: options
       .sort((a, b) => a.source.priority - b.source.priority)
@@ -220,7 +256,7 @@ catalogRoutes.get('/products/:id', async (c) => {
 });
 
 catalogRoutes.post('/products', ownerOnly, async (c) => {
-  const b = await body(c, productSchema);
+  const b = await withGroupCategory(c.env, await body(c, productSchema));
   const row = check(await db(c.env).from('products').insert(b).select('*').single()) as ProductRow;
   await log(c, 'product.create', 'product', row.id, { name: row.name_en });
   return c.json({ ok: true, product: row });
@@ -228,7 +264,7 @@ catalogRoutes.post('/products', ownerOnly, async (c) => {
 
 catalogRoutes.patch('/products/:id', async (c) => {
   const id = c.req.param('id');
-  const b = await body(c, productSchema.partial());
+  const b = await withGroupCategory(c.env, await body(c, productSchema.partial()));
   const admin = c.get('admin');
   if (admin.role !== 'owner' && Object.keys(b).some((k) => PRICING_FIELDS.includes(k))) fail(403, 'Only the owner can change pricing');
   const current = check(await db(c.env).from('products').select('*').eq('id', id).maybeSingle()) as ProductRow | null;
@@ -277,9 +313,17 @@ catalogRoutes.post('/products/reorder', ownerOnly, async (c) => {
 catalogRoutes.post('/products/bulk', ownerOnly, async (c) => {
   const b = await body(c, z.object({
     ids: z.array(z.string().uuid()).min(1).max(1000),
-    action: z.enum(['move', 'show', 'hide', 'feature', 'unfeature', 'delete']),
+    action: z.enum(['move', 'show', 'hide', 'feature', 'unfeature', 'delete', 'group']),
     category_id: z.string().uuid().nullable().optional(),
+    group_id: z.string().uuid().nullable().optional(),
   }));
+  if (b.action === 'group') {
+    // into a product (its category follows) or out of any product (group_id null)
+    const patch = b.group_id ? await withGroupCategory(c.env, { group_id: b.group_id }) : { group_id: null };
+    const rows = check(await db(c.env).from('products').update(patch).in('id', b.ids).select('id')) as { id: string }[];
+    await log(c, 'product.bulk_group', 'products', `${rows.length}`, { ids: b.ids, ...patch });
+    return c.json({ ok: true, updated: rows.length });
+  }
   if (b.action === 'delete') {
     // products with orders keep their history, products with unsold stock keep their items:
     // both are skipped (hide them instead)
@@ -305,6 +349,13 @@ catalogRoutes.post('/products/bulk', ownerOnly, async (c) => {
   const rows = check(await db(c.env).from('products').update(patch).in('id', b.ids).select('id')) as { id: string }[];
   await log(c, `product.bulk_${b.action}`, 'products', `${rows.length}`, { ids: b.ids, ...patch });
   return c.json({ ok: true, updated: rows.length });
+});
+
+/** Accept the new provider cost of a pack paused by a cost jump. */
+catalogRoutes.post('/products/:id/accept-cost', ownerOnly, async (c) => {
+  const row = await acceptPendingCost(c.env, c.req.param('id')!);
+  await log(c, 'product.accept_cost', 'product', row.id, { cost_basis: row.cost_basis });
+  return c.json({ ok: true, product: row });
 });
 
 catalogRoutes.post('/products/:id/duplicate', ownerOnly, async (c) => {
@@ -440,4 +491,218 @@ catalogRoutes.get('/products/:id/stock/export', ownerOnly, async (c) => {
   return new Response(rows.map((r) => r.content).join('\n'), {
     headers: { 'content-type': 'text/plain; charset=utf-8', 'content-disposition': `attachment; filename="stock-${status}.txt"` },
   });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Product groups ("products" customers see: ChatGPT Plus → its packs)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const groupSchema = z.object({
+  category_id: z.string().uuid().nullable().optional(),
+  name_en: z.string().trim().min(1).max(200),
+  name_ar: z.string().max(200).nullable().optional(),
+  description_en: z.string().max(4000).nullable().optional(),
+  description_ar: z.string().max(4000).nullable().optional(),
+  emoji: z.string().max(16).nullable().optional(),
+  custom_emoji_id: z.string().max(40).nullable().optional(),
+  image_url: z.string().max(1000).nullable().optional(),
+  button_style: styleEnum.nullable().optional(),
+  sort: z.number().int().optional(),
+  is_active: z.boolean().optional(),
+  is_featured: z.boolean().optional(),
+});
+
+/** Move packs into a group (their category follows the group's). */
+async function attachPacks(env: Parameters<typeof db>[0], groupId: string, categoryId: string | null, productIds: string[]): Promise<number> {
+  if (!productIds.length) return 0;
+  const rows = check(await db(env).from('products').update({ group_id: groupId, category_id: categoryId }).in('id', productIds).select('id')) as { id: string }[];
+  return rows.length;
+}
+
+catalogRoutes.get('/groups', async (c) => {
+  const s = await getSettings(c.env);
+  let q = db(c.env).from('product_groups').select('*').order('sort').order('name_en');
+  const cat = c.req.query('category_id');
+  if (cat === 'none') q = q.is('category_id', null);
+  else if (cat) q = q.eq('category_id', cat);
+  const groups = check(await q) as ProductGroupRow[];
+  if (!groups.length) return c.json({ ok: true, groups: [] });
+  // unfiltered: every grouped pack (avoids a URL with hundreds of group ids)
+  const pq = db(c.env).from('products').select('*');
+  const packs = check(await (cat ? pq.in('group_id', groups.map((g) => g.id)) : pq.not('group_id', 'is', null))) as ProductRow[];
+  const views = await viewProducts(c.env, s, packs, null);
+  const byGroup = new Map<string, ProductView[]>();
+  for (const v of views) {
+    const list = byGroup.get(v.product.group_id!) ?? [];
+    list.push(v);
+    byGroup.set(v.product.group_id!, list);
+  }
+  return c.json({
+    ok: true,
+    groups: groups.map((g) => {
+      const vs = byGroup.get(g.id) ?? [];
+      const live = vs.filter((v) => v.product.is_active && !v.pricing.soldOut && v.pricing.unitPrice != null);
+      return {
+        ...g,
+        packs: vs.length,
+        active_packs: vs.filter((v) => v.product.is_active).length,
+        in_stock: live.length,
+        paused: vs.filter((v) => v.product.paused_reason).length,
+        from_price: live.length ? Math.min(...live.map((v) => v.pricing.unitPrice!)) : null,
+      };
+    }),
+  });
+});
+
+catalogRoutes.get('/groups/:id', async (c) => {
+  const s = await getSettings(c.env);
+  const g = check(await db(c.env).from('product_groups').select('*').eq('id', c.req.param('id')).maybeSingle()) as ProductGroupRow | null;
+  if (!g) fail(404, 'Product not found');
+  const packs = check(await db(c.env).from('products').select('*').eq('group_id', g.id)) as ProductRow[];
+  const views = sortPacks(await viewProducts(c.env, s, packs, null));
+  return c.json({ ok: true, group: g, packs: views.map((v) => packItem(v)) });
+});
+
+catalogRoutes.post('/groups/reorder', ownerOnly, async (c) => {
+  const b = await body(c, z.object({ ids: z.array(z.string().uuid()).max(1000) }));
+  if (!b.ids.length) return c.json({ ok: true });
+  const rows = check(await db(c.env).from('product_groups').select('id,name_en').in('id', b.ids)) as { id: string; name_en: string }[];
+  const names = new Map(rows.map((r) => [r.id, r.name_en]));
+  check(await db(c.env).from('product_groups').upsert(
+    b.ids.filter((id) => names.has(id)).map((id, i) => ({ id, name_en: names.get(id)!, sort: i })),
+    { onConflict: 'id' },
+  ));
+  return c.json({ ok: true });
+});
+
+catalogRoutes.post('/groups', ownerOnly, async (c) => {
+  const b = await body(c, groupSchema.extend({ product_ids: z.array(z.string().uuid()).max(1000).optional() }));
+  const { product_ids, ...fields } = b;
+  const g = check(await db(c.env).from('product_groups').insert(fields).select('*').single()) as ProductGroupRow;
+  const attached = await attachPacks(c.env, g.id, g.category_id, product_ids ?? []);
+  await log(c, 'group.create', 'group', g.id, { name: g.name_en, packs: attached });
+  return c.json({ ok: true, group: g, attached });
+});
+
+catalogRoutes.patch('/groups/:id', ownerOnly, async (c) => {
+  const id = c.req.param('id')!;
+  const b = await body(c, groupSchema.partial());
+  const g = check(await db(c.env).from('product_groups').update(b).eq('id', id).select('*').single()) as ProductGroupRow;
+  // a product moved to another category takes its packs along
+  if ('category_id' in b) check(await db(c.env).from('products').update({ category_id: g.category_id }).eq('group_id', id));
+  await log(c, 'group.update', 'group', id, b);
+  return c.json({ ok: true, group: g });
+});
+
+/** Deleting a product keeps its packs: they go back to "packs without a product". */
+catalogRoutes.delete('/groups/:id', ownerOnly, async (c) => {
+  const id = c.req.param('id')!;
+  check(await db(c.env).from('products').update({ group_id: null }).eq('group_id', id));
+  check(await db(c.env).from('product_groups').delete().eq('id', id));
+  await log(c, 'group.delete', 'group', id);
+  return c.json({ ok: true });
+});
+
+catalogRoutes.post('/groups/:id/packs', ownerOnly, async (c) => {
+  const id = c.req.param('id')!;
+  const b = await body(c, z.object({ product_ids: z.array(z.string().uuid()).min(1).max(1000) }));
+  const g = check(await db(c.env).from('product_groups').select('id,category_id').eq('id', id).maybeSingle()) as { id: string; category_id: string | null } | null;
+  if (!g) fail(404, 'Product not found');
+  const attached = await attachPacks(c.env, g.id, g.category_id, b.product_ids);
+  await log(c, 'group.attach', 'group', id, { packs: b.product_ids });
+  return c.json({ ok: true, attached });
+});
+
+/** Pack order inside a product (one bulk upsert, see /products/reorder). */
+catalogRoutes.post('/groups/:id/reorder', ownerOnly, async (c) => {
+  const b = await body(c, z.object({ ids: z.array(z.string().uuid()).max(1000) }));
+  if (!b.ids.length) return c.json({ ok: true });
+  const rows = check(await db(c.env).from('products').select('id,name_en').in('id', b.ids).eq('group_id', c.req.param('id')!)) as { id: string; name_en: string }[];
+  const names = new Map(rows.map((r) => [r.id, r.name_en]));
+  check(await db(c.env).from('products').upsert(
+    b.ids.filter((id) => names.has(id)).map((id, i) => ({ id, name_en: names.get(id)!, sort: i })),
+    { onConflict: 'id' },
+  ));
+  return c.json({ ok: true });
+});
+
+interface AutoEntry {
+  key: string;
+  name: string;
+  existing_group_id: string | null;
+  category_id: string | null;
+  packs: { id: string; name_en: string; source_name: string | null }[];
+}
+
+/**
+ * Group the packs that have no product yet, by the product their provider name points to
+ * ("Capcut pro 1M …" and "CapCut Pro Team 3 Months" → CapCut Pro). Packs are never renamed.
+ * dry_run returns the plan; otherwise groups are created (or reused by name) and packs attached.
+ */
+catalogRoutes.post('/groups/auto', ownerOnly, async (c) => {
+  const b = await body(c, z.object({
+    dry_run: z.boolean().default(true),
+    category_id: z.string().uuid().nullable().optional(),
+    // 2 = leave single packs as they are (they still join an existing product of the same name)
+    min_packs: z.number().int().min(1).max(50).default(1),
+  }));
+  const s = await getSettings(c.env);
+  let q = db(c.env).from('products').select('id,name_en,category_id').eq('is_active', true).is('group_id', null);
+  if (b.category_id) q = q.eq('category_id', b.category_id);
+  const packs = check(await q) as Pick<ProductRow, 'id' | 'name_en' | 'category_id'>[];
+  if (!packs.length) return c.json({ ok: true, plan: [], applied: false });
+
+  // the primary provider product's name is the best grouping hint
+  const sources = check(await db(c.env).from('product_sources').select('product_id,provider_product_id,priority,is_enabled')
+    .in('product_id', packs.map((p) => p.id)).eq('kind', 'provider')) as Pick<ProductSourceRow, 'product_id' | 'provider_product_id' | 'priority' | 'is_enabled'>[];
+  const primary = new Map<string, string>();
+  for (const src of [...sources].sort((x, y) => Number(y.is_enabled) - Number(x.is_enabled) || x.priority - y.priority)) {
+    if (src.provider_product_id && !primary.has(src.product_id)) primary.set(src.product_id, src.provider_product_id);
+  }
+  const ppIds = [...new Set(primary.values())];
+  const pps = ppIds.length ? (check(await db(c.env).from('provider_products').select('id,name').in('id', ppIds)) as { id: string; name: string }[]) : [];
+  const ppName = new Map(pps.map((p) => [p.id, p.name]));
+
+  const existing = check(await db(c.env).from('product_groups').select('id,name_en,category_id')) as Pick<ProductGroupRow, 'id' | 'name_en' | 'category_id'>[];
+  const byName = new Map<string, Pick<ProductGroupRow, 'id' | 'name_en' | 'category_id'>>();
+  for (const g of existing) if (!byName.has(g.name_en.toLowerCase())) byName.set(g.name_en.toLowerCase(), g);
+
+  const plan = new Map<string, AutoEntry>();
+  for (const p of packs) {
+    const source = primary.has(p.id) ? ppName.get(primary.get(p.id)!) ?? null : null;
+    const clean = cleanProviderName(source ?? p.name_en, s.catalog?.name_words ?? {});
+    const entry = plan.get(clean.key) ?? { key: clean.key, name: clean.product, existing_group_id: byName.get(clean.key)?.id ?? null, category_id: null, packs: [] };
+    entry.packs.push({ id: p.id, name_en: p.name_en, source_name: source });
+    plan.set(clean.key, entry);
+  }
+  // category: the one asked for, the existing group's, else the most common among its packs
+  const catOf = new Map(packs.map((p) => [p.id, p.category_id]));
+  for (const e of plan.values()) {
+    if (b.category_id) { e.category_id = b.category_id; continue; }
+    if (e.existing_group_id) { e.category_id = byName.get(e.key)!.category_id; continue; }
+    const tally = new Map<string, number>();
+    for (const pk of e.packs) { const cid = catOf.get(pk.id); if (cid) tally.set(cid, (tally.get(cid) ?? 0) + 1); }
+    e.category_id = [...tally.entries()].sort((x, y) => y[1] - x[1])[0]?.[0] ?? null;
+  }
+  const list = [...plan.values()]
+    .filter((e) => e.existing_group_id || e.packs.length >= b.min_packs)
+    .sort((x, y) => y.packs.length - x.packs.length || x.name.localeCompare(y.name));
+  if (b.dry_run) return c.json({ ok: true, plan: list, applied: false });
+
+  // apply: new groups in one insert, all packs in one upsert (few queries for any size)
+  const fresh = list.filter((e) => !e.existing_group_id).map((e) => ({ id: crypto.randomUUID(), name_en: e.name, category_id: e.category_id, key: e.key }));
+  if (fresh.length) check(await db(c.env).from('product_groups').insert(fresh.map(({ key: _k, ...g }) => g)));
+  const idOf = new Map(fresh.map((g) => [g.key, g.id]));
+  const rows = list.flatMap((e) => e.packs.map((pk) => ({ id: pk.id, name_en: pk.name_en, group_id: e.existing_group_id ?? idOf.get(e.key)!, category_id: e.category_id })));
+  for (let i = 0; i < rows.length; i += 500) check(await db(c.env).from('products').upsert(rows.slice(i, i + 500), { onConflict: 'id' }));
+  await log(c, 'group.auto', 'groups', `${fresh.length}`, { groups: list.length, packs: rows.length });
+  return c.json({ ok: true, plan: list, applied: true, created: fresh.length, packs: rows.length });
+});
+
+/** Live preview for Settings → Catalog: how provider names group with the (unsaved) word list. */
+catalogRoutes.post('/names/preview', async (c) => {
+  const b = await body(c, z.object({ names: z.array(z.string().max(300)).max(300), words: z.record(z.string(), z.string()).optional() }));
+  const s = await getSettings(c.env);
+  const words = b.words ?? s.catalog?.name_words ?? {};
+  return c.json({ ok: true, items: b.names.filter((n) => n.trim()).map((n) => ({ name: n, ...cleanProviderName(n, words) })) });
 });

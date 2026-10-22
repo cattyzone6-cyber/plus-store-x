@@ -11,6 +11,7 @@ import { escapeHtml } from '../lib/i18n';
 import { notifyAdmins } from './notify';
 import { SYNCABLE_FIELDS } from './sync-fields';
 import { markRestocked } from './alerts';
+import { applyPriceGuards } from './price-guards';
 
 export interface SyncStats {
   total: number;
@@ -171,6 +172,14 @@ export async function syncProvider(app: AppCtx, providerId: string): Promise<Syn
 
     stats.productsUpdated = await refreshProductInfo(app, prov, products, allSources, feed, byExt);
 
+    // price guards: cost basis, cost-jump review, manual price below the minimum margin
+    const costByPp = new Map<string, number>();
+    for (const f of feed) {
+      const ex = byExt.get(f.external_id);
+      if (ex && f.cost != null) costByPp.set(ex.id, Number(f.cost));
+    }
+    const guards = await applyPriceGuards(env, await getSettings(env), prov, products, allSources, costByPp);
+
     // ── notifications ──
     const lines: string[] = [];
     if (stats.added) {
@@ -183,6 +192,11 @@ export async function syncProvider(app: AppCtx, providerId: string): Promise<Syn
     if (costLinked.length) {
       lines.push(`💱 <b>Cost changes ≥10% (linked):</b>\n${costLinked.slice(0, 15).map((c) => `• ${escapeHtml(c.name)}: ${fmtUsd(c.from)} → ${fmtUsd(c.to)}`).join('\n')}`);
     }
+    if (guards.jumps.length) {
+      lines.push(`⏸️ <b>Paused — cost jumped (accept in admin → Products → Paused):</b>\n${guards.jumps.slice(0, 15).map((j) => `• ${escapeHtml(j.name)}: ${fmtUsd(j.from)} → ${fmtUsd(j.to)}`).join('\n')}`);
+    }
+    if (guards.belowMargin.length) lines.push(`⏸️ <b>Paused — your fixed price is below the minimum margin:</b>\n${guards.belowMargin.slice(0, 15).map((n) => `• ${escapeHtml(n)}`).join('\n')}`);
+    if (guards.resumed.length) lines.push(`▶️ <b>Resumed (margin OK again):</b>\n${guards.resumed.slice(0, 15).map((n) => `• ${escapeHtml(n)}`).join('\n')}`);
     if (lines.length) await notifyAdmins(env, 'catalog_changes', `📦 <b>${escapeHtml(prov.name)}</b> catalog sync\n\n${lines.join('\n\n')}`);
 
     // announced to customers / the channel by services/alerts.ts on the next cron tick

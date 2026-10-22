@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { qs } from '../lib/api';
 import { useApi, useIsOwner, type Paged } from '../lib/hooks';
+import { useTx } from '../lib/i18n';
 import { usd, dt, label, ORDER_STATUS_TONE } from '../lib/format';
 import { Badge, Card, ErrorBox, Input, Loading, PageHeader, Pagination, Select, Table } from '../components/ui';
 
@@ -16,6 +17,7 @@ export interface Order {
 const STATUSES = ['paid', 'processing', 'awaiting_provider', 'manual_pending', 'delivered', 'partially_delivered', 'failed', 'refunded', 'partially_refunded', 'cancelled', 'pending_payment'];
 
 export default function Orders({ manual }: { manual?: boolean }) {
+  const tx = useTx();
   const [status, setStatus] = useState(manual ? 'manual_pending,failed' : '');
   const [q, setQ] = useState('');
   const [page, setPage] = useState(1);
@@ -24,25 +26,28 @@ export default function Orders({ manual }: { manual?: boolean }) {
 
   return (
     <>
-      <PageHeader title={manual ? 'Manual queue' : 'Orders'} sub={manual ? 'Orders waiting for a human: manual products and failed deliveries.' : undefined} />
+      <PageHeader
+        title={manual ? tx('Manual queue', 'التسليم اليدوي') : tx('Orders', 'الطلبات')}
+        sub={manual ? tx('Orders waiting for a human: manual packs and failed deliveries.', 'طلبات تنتظر تدخّلاً: باقات يدوية وتسليمات فاشلة.') : undefined}
+      />
       <Card>
-        <div className="mb-3 flex flex-wrap gap-2">
-          <Input placeholder="Code, product or user id…" value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} className="max-w-xs" />
-          <Select className="max-w-[220px]" value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }} options={[
-            { value: '', label: 'All paid orders' },
-            ...(manual ? [{ value: 'manual_pending,failed', label: 'Manual + failed' }] : []),
+        <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+          <Input placeholder={tx('Code, pack or user id…', 'الكود أو الباقة أو رقم الزبون…')} value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} className="sm:max-w-xs" />
+          <Select className="sm:max-w-[220px]" value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }} options={[
+            { value: '', label: tx('All paid orders', 'كل الطلبات المدفوعة') },
+            ...(manual ? [{ value: 'manual_pending,failed', label: tx('Manual + failed', 'يدوي + فاشل') }] : []),
             ...STATUSES.map((s) => ({ value: s, label: label(s) })),
           ]} />
         </div>
         {list.isLoading ? <Loading /> : list.error ? <ErrorBox error={list.error} /> : (
           <>
-            <Table head={['Order', 'Product', 'User', 'Total', ...(owner ? ['Cost'] : []), 'Status', 'Date']} empty={!list.data?.items.length}>
+            <Table head={[tx('Order', 'الطلب'), tx('Pack', 'الباقة'), tx('User', 'الزبون'), tx('Total', 'الإجمالي'), ...(owner ? [tx('Cost', 'التكلفة')] : []), tx('Status', 'الحالة'), tx('Date', 'التاريخ')]} empty={!list.data?.items.length}>
               {list.data!.items.map((o) => (
                 <tr key={o.id}>
-                  <td className="td"><Link to={`/orders/${o.id}`} className="font-mono text-xs text-gold hover:underline">{o.code}</Link>{o.channel === 'api' && <Badge className="ms-1">api</Badge>}</td>
-                  <td className="td max-w-[260px] truncate">{o.product_name} <span className="text-ink-400">× {o.quantity}</span></td>
-                  <td className="td"><Link to={`/users/${o.user_id}`} className="text-xs hover:text-gold">{o.user_id}</Link></td>
-                  <td className="td whitespace-nowrap">{usd(o.total)}{o.refunded_amount > 0 && <div className="text-xs text-ink-400">−{usd(o.refunded_amount)}</div>}</td>
+                  <td className="td whitespace-nowrap"><Link to={`/orders/${o.id}`} dir="ltr" className="font-mono text-xs text-gold hover:underline">{o.code}</Link>{o.channel === 'api' && <Badge className="ms-1">{label('api')}</Badge>}</td>
+                  <td className="td max-w-[260px] truncate">{o.product_name} <span className="text-ink-400" dir="ltr">× {o.quantity}</span></td>
+                  <td className="td"><Link to={`/users/${o.user_id}`} dir="ltr" className="text-xs hover:text-gold">{o.user_id}</Link></td>
+                  <td className="td whitespace-nowrap">{usd(o.total)}{o.refunded_amount > 0 && <div className="text-xs text-ink-400">{usd(-o.refunded_amount)}</div>}</td>
                   {owner && <td className="td text-ink-400">{usd(o.cost_total)}</td>}
                   <td className="td"><Badge tone={ORDER_STATUS_TONE[o.status]}>{label(o.status)}</Badge>{o.error && <div className="max-w-[200px] truncate text-xs text-red-300" title={o.error}>{o.error}</div>}</td>
                   <td className="td whitespace-nowrap text-xs text-ink-400">{dt(o.created_at)}</td>

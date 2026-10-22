@@ -28,6 +28,10 @@ export interface ProductPricing {
   userDiscountPercent: number;
   /** reference cost used for markup */
   referenceCost: number | null;
+  /** minimum margin % applied to this pack */
+  minMarginPercent: number;
+  /** paused by a price guard (cost jump waiting for review, manual price below margin) */
+  paused: ProductRow['paused_reason'];
   /** null = unlimited, 0 = sold out */
   available: number | null;
   soldOut: boolean;
@@ -89,13 +93,24 @@ export function priceProduct(
     product.base_cost ??
     null;
 
+  // provider import defaults apply when the pack has no own value
+  const primaryProvider = route.find((o) => o.provider)?.provider ?? options.find((o) => o.provider)?.provider ?? null;
+  const minMarginPercent = Number(product.min_margin_percent ?? primaryProvider?.import_min_margin_percent ?? s.pricing.min_margin_percent ?? 0);
+
+  // the price follows cost increases; drops only when follow_drops is on (cost_basis keeps the old cost)
+  const pricingCost = referenceCost == null
+    ? null
+    : !s.pricing.follow_drops && product.cost_basis != null ? Math.max(referenceCost, Number(product.cost_basis)) : referenceCost;
+
   let base: number | null = null;
   if (product.pricing_mode === 'manual') {
     base = product.manual_price != null ? Number(product.manual_price) : null;
-  } else if (referenceCost != null) {
-    const pct = product.markup_percent ?? s.pricing.default_markup_percent;
-    const fixed = product.markup_fixed ?? s.pricing.default_markup_fixed;
-    base = applyRounding(referenceCost * (1 + Number(pct) / 100) + Number(fixed), s.pricing.rounding);
+  } else if (pricingCost != null) {
+    const pct = product.markup_percent ?? primaryProvider?.import_markup_percent ?? s.pricing.default_markup_percent;
+    const fixed = product.markup_fixed ?? primaryProvider?.import_markup_fixed ?? s.pricing.default_markup_fixed;
+    const marked = pricingCost * (1 + Number(pct) / 100) + Number(fixed);
+    // margin guard: never below cost × (1 + minimum margin)
+    base = applyRounding(Math.max(marked, pricingCost * (1 + minMarginPercent / 100)), s.pricing.rounding);
   }
 
   const salePercent = Math.min(Math.max(Number(product.sale_percent) || 0, 0), 95);
@@ -125,8 +140,10 @@ export function priceProduct(
     salePercent,
     userDiscountPercent: udp,
     referenceCost,
+    minMarginPercent,
+    paused: product.paused_reason ?? null,
     available,
-    soldOut: available === 0 || unitPrice == null,
+    soldOut: available === 0 || unitPrice == null || !!product.paused_reason,
     route,
     options,
   };

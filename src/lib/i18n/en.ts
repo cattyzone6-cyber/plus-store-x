@@ -97,6 +97,8 @@ export const en = {
   shop_title: '{e:shop} <b>Shop</b>\n\nChoose a category 👇',
   shop_choose: 'Choose a category 👇',
   btn_other_products: 'Other products',
+  group_button: '{name} · from {price}',
+  group_view: '{emoji} <b>{name}</b>\n{description}\n{sale}<i>{count} packs — tap one to see the details.</i>',
   category_other_view: '{e:product} <b>Other products</b>\n\n<i>{count} products — tap one to see the details.</i>',
   shop_all_products: '{e:shop} <b>Shop</b>\n\n<i>{count} products — tap one to see the details.</i>',
   shop_empty: '{e:shop} <b>Shop</b>\n\n<i>No products yet — check back soon!</i>',
@@ -133,6 +135,7 @@ export const en = {
   qty_custom_prompt: '{e:quantity} Send the quantity as a number (<b>{min}–{max}</b>).',
   qty_invalid: '{e:warning} Please send a whole number between <b>{min}</b> and <b>{max}</b>.',
   pricelist_title: '{e:orders} <b>Price list</b> — everything in stock\n',
+  pricelist_group: '\n{emoji} <b>{name}</b>',
   pricelist_line: '{emoji} {name} — {price}',
   pricelist_empty: '{e:info} Nothing in stock right now — check back soon!',
 

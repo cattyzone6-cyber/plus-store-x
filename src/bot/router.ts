@@ -1,7 +1,7 @@
 import type { BotContext } from './context';
 import { answer, getAdmin, plain, setState, tr } from './context';
 import { showForceJoin, showHome, showLanguagePicker } from './handlers/home';
-import { onToggleAlerts, onToggleNotifyMe, showCategory, showPriceList, showProduct, showShop } from './handlers/shop';
+import { onToggleAlerts, onToggleNotifyMe, showCategory, showGroup, showPriceList, showProduct, showShop } from './handlers/shop';
 import {
   askCustomQty, askPromo, cancelCheckout, chooseQuantity, onInputOption, onInputText, onPromoText, onQtyText,
   payWithGateway, payWithWallet, reopenCheckout, startBuy,
@@ -45,6 +45,7 @@ export async function onCallback(ctx: BotContext, data: string, botUsername: str
     case 'c': return showCategory(ctx, a);
     case 'so': return showProduct(ctx, a); // sold-out products open too ("notify me" button)
     case 'na': return onToggleNotifyMe(ctx, a);
+    case 'g': return showGroup(ctx, a);
     case 'p': return showProduct(ctx, a);
     case 'b': return startBuy(ctx, a);
     case 'q': return chooseQuantity(ctx, a, Number(b));
@@ -152,7 +153,7 @@ export async function attachReferral(ctx: BotContext, payload: string): Promise<
   }
 }
 
-/** /start [ref_<id> | shop | c_<categoryId> | p_<productId>] */
+/** /start [ref_<id> | shop | c_<categoryId> | g_<groupId> | p_<productId>] */
 async function onStart(ctx: BotContext, payload: string): Promise<void> {
   await attachReferral(ctx, payload);
   return openStartPayload(ctx, payload);
@@ -160,7 +161,7 @@ async function onStart(ctx: BotContext, payload: string): Promise<void> {
 
 /** True for payloads that open a screen (worth remembering across the language / join gates). */
 export function isDeepLink(payload: string): boolean {
-  return payload === 'shop' || (/^[cp]_/.test(payload) && UUID.test(payload.slice(2)));
+  return payload === 'shop' || (/^[cgp]_/.test(payload) && UUID.test(payload.slice(2)));
 }
 
 /**
@@ -183,6 +184,7 @@ async function afterLanguage(ctx: BotContext, pendingLink: string): Promise<void
 export async function openStartPayload(ctx: BotContext, payload: string): Promise<void> {
   if (payload === 'shop') return showShop(ctx);
   if (payload.startsWith('c_') && UUID.test(payload.slice(2))) return showCategory(ctx, payload.slice(2));
+  if (payload.startsWith('g_') && UUID.test(payload.slice(2))) return showGroup(ctx, payload.slice(2));
   if (payload.startsWith('p_') && UUID.test(payload.slice(2))) return showProduct(ctx, payload.slice(2));
   return showHome(ctx, { forceNew: true });
 }

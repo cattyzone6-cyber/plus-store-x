@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { qs } from '../lib/api';
 import { useApi, type Paged } from '../lib/hooks';
+import { useTx } from '../lib/i18n';
 import { usd, dt, ago } from '../lib/format';
 import { Badge, Card, ErrorBox, Input, Loading, PageHeader, Pagination, Select, Table } from '../components/ui';
 
@@ -13,6 +14,7 @@ export interface User {
 }
 
 export default function Users() {
+  const tx = useTx();
   const [q, setQ] = useState('');
   const [sort, setSort] = useState('joined_at');
   const [filter, setFilter] = useState('');
@@ -21,25 +23,27 @@ export default function Users() {
 
   return (
     <>
-      <PageHeader title="Users" sub="Telegram customers" />
+      <PageHeader title={tx('Customers', 'الزبائن')} sub={tx('Telegram customers', 'زبائن تيليجرام')} />
       <Card>
-        <div className="mb-3 flex flex-wrap gap-2">
-          <Input placeholder="ID, @username or name…" value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} className="max-w-xs" />
-          <Select className="max-w-[200px]" value={sort} onChange={(e) => setSort(e.target.value)} options={[
-            { value: 'joined_at', label: 'Newest' }, { value: 'last_seen_at', label: 'Recently active' }, { value: 'total_spent', label: 'Top spenders' },
-            { value: 'balance', label: 'Highest balance' }, { value: 'orders_count', label: 'Most orders' },
-          ]} />
-          <Select className="max-w-[180px]" value={filter} onChange={(e) => { setFilter(e.target.value); setPage(1); }} options={[{ value: '', label: 'Everyone' }, { value: 'balance', label: 'With balance' }, { value: 'banned', label: 'Banned' }]} />
+        <div className="mb-3 grid gap-2 sm:flex sm:flex-wrap">
+          <Input placeholder={tx('ID, @username or name…', 'الرقم أو @المعرّف أو الاسم…')} value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} className="sm:max-w-xs" />
+          <div className="grid grid-cols-2 gap-2 sm:contents">
+            <Select className="sm:max-w-[200px]" value={sort} onChange={(e) => setSort(e.target.value)} options={[
+              { value: 'joined_at', label: tx('Newest', 'الأحدث') }, { value: 'last_seen_at', label: tx('Recently active', 'نشط مؤخراً') }, { value: 'total_spent', label: tx('Top spenders', 'الأكثر إنفاقاً') },
+              { value: 'balance', label: tx('Highest balance', 'الأعلى رصيداً') }, { value: 'orders_count', label: tx('Most orders', 'الأكثر طلبات') },
+            ]} />
+            <Select className="sm:max-w-[180px]" value={filter} onChange={(e) => { setFilter(e.target.value); setPage(1); }} options={[{ value: '', label: tx('Everyone', 'الجميع') }, { value: 'balance', label: tx('With balance', 'لديهم رصيد') }, { value: 'banned', label: tx('Banned', 'محظورون') }]} />
+          </div>
         </div>
         {list.isLoading ? <Loading /> : list.error ? <ErrorBox error={list.error} /> : (
           <>
-            <Table head={['User', 'Balance', 'Spent', 'Orders', 'Lang', 'Joined', 'Seen']} empty={!list.data?.items.length}>
+            <Table head={[tx('Customer', 'الزبون'), tx('Balance', 'الرصيد'), tx('Spent', 'الإنفاق'), tx('Orders', 'الطلبات'), tx('Lang', 'اللغة'), tx('Joined', 'الانضمام'), tx('Seen', 'آخر ظهور')]} empty={!list.data?.items.length}>
               {list.data!.items.map((u) => (
                 <tr key={u.id}>
-                  <td className="td">
-                    <Link to={`/users/${u.id}`} className="hover:text-gold">{[u.first_name, u.last_name].filter(Boolean).join(' ') || u.id}</Link>
-                    <div className="text-xs text-ink-400">{u.username ? `@${u.username} · ` : ''}{u.id}</div>
-                    <div className="flex gap-1">{u.is_banned && <Badge tone="red">banned</Badge>}{u.blocked_bot && <Badge>blocked bot</Badge>}{u.discount_percent > 0 && <Badge tone="gold">−{u.discount_percent}%</Badge>}</div>
+                  <td className="td max-w-[220px]">
+                    <Link to={`/users/${u.id}`} className="block truncate hover:text-gold">{[u.first_name, u.last_name].filter(Boolean).join(' ') || u.id}</Link>
+                    <div className="truncate text-xs text-ink-400" dir="ltr">{u.username ? `@${u.username} · ` : ''}{u.id}</div>
+                    <div className="flex gap-1">{u.is_banned && <Badge tone="red">{tx('banned', 'محظور')}</Badge>}{u.blocked_bot && <Badge>{tx('blocked bot', 'حظر البوت')}</Badge>}{u.discount_percent > 0 && <Badge tone="gold"><span dir="ltr">−{u.discount_percent}%</span></Badge>}</div>
                   </td>
                   <td className="td">{usd(u.balance)}</td>
                   <td className="td">{usd(u.total_spent)}</td>

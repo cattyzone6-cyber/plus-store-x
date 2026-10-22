@@ -1,4 +1,5 @@
 import { createClient, type Session, type SupabaseClient } from '@supabase/supabase-js';
+import { currentLang } from './i18n';
 
 export interface PublicConfig {
   supabaseUrl: string;
@@ -18,7 +19,7 @@ let session: Session | null = null;
 
 export async function loadConfig(): Promise<PublicConfig> {
   const res = await fetch('/api/admin/config');
-  if (!res.ok) throw new Error('Could not reach the store API');
+  if (!res.ok) throw new Error(currentLang() === 'ar' ? 'تعذّر الوصول إلى خادم المتجر' : 'Could not reach the store API');
   return (await res.json()) as PublicConfig;
 }
 

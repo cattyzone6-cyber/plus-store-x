@@ -1,14 +1,14 @@
 import type { BotContext } from '../context';
 import { answer, show, tr } from '../context';
 import { backHomeRow, btn, cb, chunkLines, discountPercent, homeRow, loc, priceHtml, priceText, truncate } from '../ui';
-import { getCategory, getProductView, listAllProducts, listCategories, listProducts, listUncategorizedProducts, productCounts, UNCATEGORIZED, type ProductView } from '../../services/catalog';
+import { activeGroups, orderPacks, getCategory, getGroupView, getProductView, listAllProducts, listCategories, listCategoryEntries, productCounts, UNCATEGORIZED, type GroupView, type ProductView } from '../../services/catalog';
 import { fixedQuantity } from '../../services/pricing';
 import { hasStockAlert, setAlertsOptIn, toggleStockAlert } from '../../services/alerts';
 import { plain } from '../context';
 import { customEmojiHtml } from '../../lib/emoji';
 import { escapeHtml, raw } from '../../lib/i18n';
 import { button, grid, type InlineButton, type InlineKeyboard } from '../../lib/telegram';
-import type { CategoryRow, ProductRow } from '../../types';
+import type { CategoryRow, ProductGroupRow, ProductRow } from '../../types';
 
 export function productEmojiHtml(ctx: BotContext, p: Pick<ProductRow, 'custom_emoji_id' | 'emoji'>): string {
   return customEmojiHtml(ctx.st.em.premium, p.custom_emoji_id, p.emoji || ctx.st.em.char('product'));
@@ -16,6 +16,10 @@ export function productEmojiHtml(ctx: BotContext, p: Pick<ProductRow, 'custom_em
 
 function categoryEmojiHtml(ctx: BotContext, c: CategoryRow): string {
   return customEmojiHtml(ctx.st.em.premium, c.custom_emoji_id, c.emoji || ctx.st.em.char('category'));
+}
+
+function groupEmojiHtml(ctx: BotContext, g: Pick<ProductGroupRow, 'custom_emoji_id' | 'emoji'>): string {
+  return customEmojiHtml(ctx.st.em.premium, g.custom_emoji_id, g.emoji || ctx.st.em.char('product'));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -68,14 +72,59 @@ function productButton(ctx: BotContext, v: ProductView): InlineButton {
   }, em);
 }
 
-/** Products that have no category (a virtual "Other products" category). */
+/** "ChatGPT Plus · from $13.50" — opens the product's pack list. */
+export function groupButtonText(ctx: BotContext, g: GroupView): string {
+  const name = loc(g.group, 'name', ctx.st.user.lang);
+  if (!g.inStock) return truncate(`${name} | ${tr(ctx, 'sold_out_short')}`, 60);
+  // button labels are plain text: tr() escapes HTML, plain() turns it back
+  return truncate(plain(tr(ctx, 'group_button', { name, price: g.fromPrice != null ? priceText(g.fromPrice) : '—' })), 60);
+}
+
+function groupButton(ctx: BotContext, g: GroupView): InlineButton {
+  const { s, em } = ctx.st;
+  return button({
+    text: groupButtonText(ctx, g),
+    customEmojiId: g.inStock ? g.group.custom_emoji_id : null,
+    fallbackEmoji: g.inStock ? g.group.emoji || em.char('product') : em.char('sold_out'),
+    style: g.inStock ? g.group.button_style ?? s.bot.in_stock_style : s.bot.sold_out_style,
+    data: cb('g', g.group.id),
+  }, em);
+}
+
+/** Products (groups) and packs that have no category (a virtual "Other products" category). */
 export async function showUncategorized(ctx: BotContext): Promise<void> {
   const { env, s, user } = ctx.st;
-  const [products, cats] = await Promise.all([listUncategorizedProducts(env, s, user), listCategories(env, null)]);
-  if (!products.length) return showShop(ctx);
-  const kb: InlineKeyboard = products.map((v) => [productButton(ctx, v)]);
+  const [{ groups, packs }, cats] = await Promise.all([listCategoryEntries(env, s, null, user), listCategories(env, null)]);
+  const count = groups.length + packs.length;
+  if (!count) return showShop(ctx);
+  const kb: InlineKeyboard = [...groups.map((g) => [groupButton(ctx, g)]), ...packs.map((v) => [productButton(ctx, v)])];
   kb.push(cats.length ? backHomeRow(ctx, 'shop') : homeRow(ctx));
-  await show(ctx, tr(ctx, cats.length ? 'category_other_view' : 'shop_all_products', { count: products.length }), kb);
+  await show(ctx, tr(ctx, cats.length ? 'category_other_view' : 'shop_all_products', { count }), kb);
+}
+
+/** Product screen: the group's picture/description and one button per pack (full pack names). */
+export async function showGroup(ctx: BotContext, groupId: string): Promise<void> {
+  const { env, s, user } = ctx.st;
+  const lang = user.lang;
+  const g = await getGroupView(env, s, groupId, user);
+  if (!g) {
+    await answer(ctx, tr(ctx, 'err_PRODUCT_NOT_FOUND'), true);
+    await showShop(ctx);
+    return;
+  }
+  const { group } = g;
+  const kb: InlineKeyboard = g.packs.map((v) => [productButton(ctx, v)]);
+  kb.push(backHomeRow(ctx, group.category_id ? cb('c', group.category_id) : cb('c', UNCATEGORIZED)));
+  const desc = loc(group, 'description', lang);
+  const reduced = g.packs.filter((v) => !v.pricing.soldOut && discountPercent(v.pricing.unitPrice ?? 0, v.pricing.originalUnitPrice) > 0).length;
+  const html = tr(ctx, 'group_view', {
+    emoji: raw(groupEmojiHtml(ctx, group)),
+    name: loc(group, 'name', lang),
+    description: raw(desc ? `<blockquote expandable>${escapeHtml(desc)}</blockquote>\n` : ''),
+    sale: raw(reduced ? `${tr(ctx, 'category_sale_line', { n: reduced, count: g.packs.length })}\n\n` : ''),
+    count: g.packs.length,
+  });
+  await show(ctx, html, kb, { imageUrl: group.image_url });
 }
 
 export async function showCategory(ctx: BotContext, categoryId: string): Promise<void> {
@@ -87,23 +136,26 @@ export async function showCategory(ctx: BotContext, categoryId: string): Promise
     await showShop(ctx);
     return;
   }
-  const [subs, products] = await Promise.all([listCategories(env, cat.id), listProducts(env, s, cat.id, user)]);
+  const [subs, { groups, packs: products }] = await Promise.all([listCategories(env, cat.id), listCategoryEntries(env, s, cat.id, user)]);
 
   const kb: InlineKeyboard = [];
   for (const sub of subs) {
     kb.push([button({ text: loc(sub, 'name', lang), customEmojiId: sub.custom_emoji_id, fallbackEmoji: sub.emoji || em.char('category'), style: sub.button_style, data: cb('c', sub.id) }, em)]);
   }
+  for (const g of groups) kb.push([groupButton(ctx, g)]);
   for (const v of products) kb.push([productButton(ctx, v)]);
+  const entries = groups.length + products.length;
   kb.push(backHomeRow(ctx, cat.parent_id ? cb('c', cat.parent_id) : 'shop'));
 
-  const reduced = products.filter((v) => !v.pricing.soldOut && discountPercent(v.pricing.unitPrice ?? 0, v.pricing.originalUnitPrice) > 0).length;
+  const allPacks = [...groups.flatMap((g) => g.packs), ...products];
+  const reduced = allPacks.filter((v) => !v.pricing.soldOut && discountPercent(v.pricing.unitPrice ?? 0, v.pricing.originalUnitPrice) > 0).length;
   const desc = loc(cat, 'description', lang);
-  const html = tr(ctx, products.length ? 'category_view' : 'category_empty', {
+  const html = tr(ctx, entries ? 'category_view' : 'category_empty', {
     emoji: raw(categoryEmojiHtml(ctx, cat)),
     name: loc(cat, 'name', lang),
     description: raw(desc ? `<blockquote>${escapeHtml(desc)}</blockquote>\n` : ''),
-    sale: raw(reduced ? `${tr(ctx, 'category_sale_line', { n: reduced, count: products.length })}\n\n` : ''),
-    count: products.length,
+    sale: raw(reduced ? `${tr(ctx, 'category_sale_line', { n: reduced, count: allPacks.length })}\n\n` : ''),
+    count: entries,
   });
   await show(ctx, html, kb, { imageUrl: cat.image_url });
 }
@@ -180,7 +232,7 @@ export async function showProduct(ctx: BotContext, productId: string): Promise<v
     const on = await hasStockAlert(env, user.id, product.id);
     kb.push([btn(ctx, on ? 'btn_notify_on' : 'btn_notify_me', cb('na', product.id), 'bell', on ? 'success' : 'primary')]);
   }
-  kb.push(backHomeRow(ctx, product.category_id ? cb('c', product.category_id) : 'shop'));
+  kb.push(backHomeRow(ctx, product.group_id ? cb('g', product.group_id) : product.category_id ? cb('c', product.category_id) : 'shop'));
   await show(ctx, html, kb, { imageUrl: product.image_url });
 }
 
@@ -217,19 +269,37 @@ export async function showQuantity(ctx: BotContext, productId: string): Promise<
 /** /product — price list of everything in stock. */
 export async function showPriceList(ctx: BotContext): Promise<void> {
   const { env, s, user } = ctx.st;
-  const views = await listAllProducts(env, s, user);
+  const [views, groups] = await Promise.all([listAllProducts(env, s, user), activeGroups(env)]);
   if (!views.length) {
     await show(ctx, tr(ctx, 'pricelist_empty'), [homeRow(ctx)], { forceNew: true });
     return;
   }
-  const lines = views.map((v) =>
+  const line = (v: ProductView) =>
     tr(ctx, 'pricelist_line', {
       emoji: raw(productEmojiHtml(ctx, v.product)),
       name: loc(v.product, 'name', user.lang),
       price: raw(priceHtml(v.pricing.unitPrice!, v.pricing.originalUnitPrice)),
       link: s.brand.bot_username || '',
-    }),
-  );
+    });
+  // packs grouped under their product, in the admin's product order; ungrouped packs last
+  const byGroup = new Map<string, ProductView[]>();
+  const loose: ProductView[] = [];
+  for (const v of views) {
+    if (v.product.group_id && groups.has(v.product.group_id)) {
+      const list = byGroup.get(v.product.group_id) ?? [];
+      list.push(v);
+      byGroup.set(v.product.group_id, list);
+    } else loose.push(v);
+  }
+  const lines: string[] = [];
+  for (const g of groups.values()) {
+    const packs = byGroup.get(g.id);
+    if (!packs?.length) continue;
+    lines.push(tr(ctx, 'pricelist_group', { emoji: raw(groupEmojiHtml(ctx, g)), name: loc(g, 'name', user.lang) }));
+    lines.push(...orderPacks(packs).map(line));
+  }
+  if (loose.length && lines.length) lines.push('');
+  lines.push(...loose.map(line));
   const chunks = chunkLines([tr(ctx, 'pricelist_title'), ...lines]);
   for (let i = 0; i < chunks.length; i++) {
     const last = i === chunks.length - 1;
