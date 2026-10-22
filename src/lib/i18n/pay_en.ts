@@ -1,11 +1,11 @@
 // Payment / deposit texts (English). Merged into DICTS.en by src/lib/i18n/index.ts.
 export const payEn: Record<string, string> = {
   // copy button labels
-  pay_label_amount: 'Copy amount',
-  pay_label_address: 'Copy address',
-  pay_label_pay_id: 'Copy Pay ID',
-  pay_label_reference: 'Copy reference',
-  pay_label_account: 'Copy account number',
+  pay_label_amount: 'amount',
+  pay_label_address: 'address',
+  pay_label_pay_id: 'Pay ID',
+  pay_label_reference: 'reference',
+  pay_label_account: 'account number',
   pay_btn_open_binance: 'Pay in Binance',
 
   pay_fee_line: '{e:info} Fee: <b>{fee}</b>\n',

@@ -1,10 +1,10 @@
 // Payment / deposit texts (Arabic). Merged into DICTS.ar by src/lib/i18n/index.ts.
 export const payAr: Record<string, string> = {
-  pay_label_amount: 'نسخ المبلغ',
-  pay_label_address: 'نسخ العنوان',
-  pay_label_pay_id: 'نسخ Pay ID',
-  pay_label_reference: 'نسخ المرجع',
-  pay_label_account: 'نسخ رقم الحساب',
+  pay_label_amount: 'المبلغ',
+  pay_label_address: 'العنوان',
+  pay_label_pay_id: 'Pay ID',
+  pay_label_reference: 'المرجع',
+  pay_label_account: 'رقم الحساب',
   pay_btn_open_binance: 'ادفع عبر بينانس',
 
   pay_fee_line: '{e:info} الرسوم: <b>{fee}</b>\n',
