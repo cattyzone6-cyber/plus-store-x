@@ -4,6 +4,7 @@ import type { DepositMethod } from '../types';
 import { getSecret } from '../lib/settings';
 import { binancePayRequest } from './binancePay';
 import { fetchPayTransactions } from './binanceId';
+import { apiBase, payCurrency } from './nowpayments';
 import { fetchJson, GatewayError } from './util';
 
 // "Test keys" for the admin panel: one harmless, read-only call per gateway that tells
@@ -47,15 +48,25 @@ export async function testGatewayKeys(env: Env, s: AppSettings, method: DepositM
     if (method === 'nowpayments') {
       const key = await getSecret(env, 'nowpayments_api_key');
       if (!key) return { ok: false, message: 'API key is not saved yet.' };
-      const base = s.payments.nowpayments.sandbox ? 'https://api-sandbox.nowpayments.io/v1' : 'https://api.nowpayments.io/v1';
+      const base = apiBase(s);
       const r = await fetchJson<{ selectedCurrencies?: string[] }>(`${base}/merchant/coins`, { headers: { 'x-api-key': key } });
       const coins = r.selectedCurrencies ?? [];
-      const want = s.payments.nowpayments.pay_currency.toLowerCase();
+      const want = payCurrency(s);
       const hasCoin = !coins.length || coins.map((c) => c.toLowerCase()).includes(want);
       const ipn = await getSecret(env, 'nowpayments_ipn_secret');
+      // NOWPayments' own minimum for this coin, in USD (a lower store minimum makes payments fail)
+      let minNote = '';
+      try {
+        const m = await fetchJson<{ fiat_equivalent?: number }>(`${base}/min-amount?currency_from=${want}&fiat_equivalent=usd`, { headers: { 'x-api-key': key } });
+        const minUsd = Number(m.fiat_equivalent);
+        if (minUsd > 0) {
+          minNote = ` NOWPayments minimum for ${want}: about $${minUsd.toFixed(2)}.`;
+          if (s.payments.nowpayments.min_amount < minUsd) minNote += ' Raise the NOWPayments minimum in Payments to at least this.';
+        }
+      } catch { /* informational only */ }
       return {
         ok: hasCoin && !!ipn,
-        message: `API key works.${hasCoin ? '' : ` ${want} is not enabled in your NOWPayments coin settings.`}${ipn ? '' : ' IPN secret is missing (payments will only be confirmed by polling).'}`,
+        message: `API key works (coin ${want}).${hasCoin ? '' : ` ${want} is not enabled in your NOWPayments coin settings.`}${ipn ? '' : ' IPN secret is missing (payments will only be confirmed by polling).'}${minNote}`,
       };
     }
     return { ok: false, message: 'Nothing to test for this method.' };

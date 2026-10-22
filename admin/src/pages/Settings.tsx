@@ -433,7 +433,10 @@ export default function SettingsPage() {
               { path: 'binance_id.fee_percent', label: tx('Pay ID fee %', 'رسوم Pay ID %'), type: 'number' },
               yesNo(tx('Add random cents to match transfers', 'إضافة سنتات عشوائية لمطابقة التحويلات'), 'binance_id.unique_amount'),
               { path: 'binance_id.instructions_en', label: tx('Pay ID instructions (EN)', 'تعليمات Pay ID (إنجليزي)'), type: 'textarea' }, { path: 'binance_id.instructions_ar', label: tx('Pay ID instructions (AR)', 'تعليمات Pay ID (عربي)'), type: 'textarea', rtl: true },
-              yesNo(tx('NOWPayments (USDT BEP20)', 'NOWPayments (USDT BEP20)'), 'nowpayments.enabled'), { path: 'nowpayments.pay_currency', label: tx('Pay currency code', 'رمز عملة الدفع'), hint: tx('usdtbsc = USDT on BEP20', 'usdtbsc = USDT على شبكة BEP20') },
+              yesNo(tx('NOWPayments (crypto)', 'NOWPayments (عملات رقمية)'), 'nowpayments.enabled'), { path: 'nowpayments.pay_currency', label: tx('Coin and network', 'العملة والشبكة'), type: 'select', hint: tx('Must also be enabled in your NOWPayments dashboard (Settings → Coins settings)', 'يجب تفعيلها أيضاً في لوحة NOWPayments (Settings ← Coins settings)'), options: [
+                { value: 'usdtbsc', label: 'USDT · BEP20 (BNB Smart Chain)' }, { value: 'usdttrc20', label: 'USDT · TRC20 (Tron)' }, { value: 'usdtton', label: 'USDT · TON' },
+                { value: 'usdtsol', label: 'USDT · Solana' }, { value: 'usdtmatic', label: 'USDT · Polygon' }, { value: 'usdterc20', label: 'USDT · ERC20 (Ethereum)' },
+              ] },
               { path: 'nowpayments.min_amount', label: tx('NOWPayments minimum ($)', 'الحد الأدنى لـ NOWPayments ($)'), type: 'number' }, { path: 'nowpayments.fee_percent', label: tx('NOWPayments fee %', 'رسوم NOWPayments %'), type: 'number' },
               yesNo(tx('NOWPayments sandbox', 'وضع التجربة لـ NOWPayments'), 'nowpayments.sandbox'),
               yesNo(tx('ShamCash (manual review)', 'شام كاش (مراجعة يدوية)'), 'shamcash.enabled'), { path: 'shamcash.account_name', label: tx('ShamCash account name', 'اسم حساب شام كاش') },
