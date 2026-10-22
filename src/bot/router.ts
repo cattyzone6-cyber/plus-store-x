@@ -31,6 +31,9 @@ export async function onCallback(ctx: BotContext, data: string, botUsername: str
   const parts = data.split(':');
   const [head, a, b, c] = parts;
 
+  // a deep link remembered while the language picker / join gate was shown
+  const pendingLink = ctx.st.user.state?.kind === 'pending_link' ? String(ctx.st.user.state.data?.payload ?? '') : '';
+
   // leaving an input flow by navigating clears the pending state (except option picks)
   if (ctx.st.user.state && head !== 'inp' && head !== 'adm' && !isAdminState(ctx.st.user.state.kind)) await setState(ctx, null);
 
@@ -90,13 +93,13 @@ export async function onCallback(ctx: BotContext, data: string, botUsername: str
       if (a === 'f') return askReplaceDescription(ctx, Number(b), 'refund');
       return a ? showReplaceOrder(ctx, Number(a)) : showReplaceList(ctx);
     case 'lang':
-      if (a === 'en' || a === 'ar') return onSetLanguage(ctx, a as Lang);
+      if (a === 'en' || a === 'ar') return onSetLanguage(ctx, a as Lang, pendingLink ? () => openStartPayload(ctx, pendingLink) : undefined);
       return showLanguagePicker(ctx);
     case 'fj': {
       const missing = await checkForceJoin(ctx, true);
       if (missing.length) return answer(ctx, plain(tr(ctx, 'force_join_not_yet')), true);
       await answer(ctx, plain(tr(ctx, 'force_join_ok')));
-      return showHome(ctx);
+      return pendingLink ? openStartPayload(ctx, pendingLink) : showHome(ctx);
     }
     case 'adm': return onAdminCallback(ctx, data);
     default: return answer(ctx);
@@ -149,12 +152,22 @@ export async function attachReferral(ctx: BotContext, payload: string): Promise<
   }
 }
 
-/** /start [ref_<id> | p_<productId>] */
+/** /start [ref_<id> | shop | c_<categoryId> | p_<productId>] */
 async function onStart(ctx: BotContext, payload: string): Promise<void> {
   await attachReferral(ctx, payload);
-  if (payload.startsWith('p_') && UUID.test(payload.slice(2))) {
-    return showProduct(ctx, payload.slice(2));
-  }
+  return openStartPayload(ctx, payload);
+}
+
+/** True for payloads that open a screen (worth remembering across the language / join gates). */
+export function isDeepLink(payload: string): boolean {
+  return payload === 'shop' || (/^[cp]_/.test(payload) && UUID.test(payload.slice(2)));
+}
+
+/** Deep links from the landing page, channel posts and alerts. */
+export async function openStartPayload(ctx: BotContext, payload: string): Promise<void> {
+  if (payload === 'shop') return showShop(ctx);
+  if (payload.startsWith('c_') && UUID.test(payload.slice(2))) return showCategory(ctx, payload.slice(2));
+  if (payload.startsWith('p_') && UUID.test(payload.slice(2))) return showProduct(ctx, payload.slice(2));
   return showHome(ctx, { forceNew: true });
 }
 

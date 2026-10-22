@@ -3,8 +3,8 @@ import type { Update } from 'grammy/types';
 import type { Context as HonoContext } from 'hono';
 import type { AppCtx, Env } from '../env';
 import type { BotContext } from './context';
-import { answer, getAdmin, plain, tr } from './context';
-import { attachReferral, onCallback, onCommand, onMessage, showForceJoin, showLanguagePicker } from './router';
+import { answer, getAdmin, plain, setState, tr } from './context';
+import { attachReferral, isDeepLink, onCallback, onCommand, onMessage, showForceJoin, showLanguagePicker } from './router';
 import { checkForceJoin } from './forceJoin';
 import { getSettings } from '../lib/settings';
 import { getEmojiResolver } from '../lib/emoji';
@@ -98,6 +98,7 @@ function install(bot: Bot<BotContext>): void {
     if (s.bot.ask_lang_on_start && !user.lang_chosen && !data.startsWith('lang:')) {
       const m = /^\/start(?:@\w+)?\s+(\S+)/.exec(text);
       if (m) await attachReferral(ctx, m[1]);
+      if (m && isDeepLink(m[1])) await setState(ctx, { kind: 'pending_link', data: { payload: m[1] } });
       return showLanguagePicker(ctx);
     }
 
@@ -105,7 +106,10 @@ function install(bot: Bot<BotContext>): void {
       const m = /^\/start(?:@\w+)?\s+(\S+)/.exec(text);
       if (m) await attachReferral(ctx, m[1]);
       const missing = await checkForceJoin(ctx);
-      if (missing.length) return showForceJoin(ctx, missing);
+      if (missing.length) {
+        if (m && isDeepLink(m[1])) await setState(ctx, { kind: 'pending_link', data: { payload: m[1] } });
+        return showForceJoin(ctx, missing);
+      }
     }
     return next();
   });

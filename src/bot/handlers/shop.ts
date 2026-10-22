@@ -1,7 +1,7 @@
 import type { BotContext } from '../context';
 import { answer, show, tr } from '../context';
 import { backHomeRow, btn, cb, chunkLines, discountPercent, homeRow, loc, priceHtml, priceText, truncate } from '../ui';
-import { getCategory, getProductView, listAllProducts, listCategories, listProducts, productCounts, type ProductView } from '../../services/catalog';
+import { getCategory, getProductView, listAllProducts, listCategories, listProducts, listUncategorizedProducts, productCounts, UNCATEGORIZED, type ProductView } from '../../services/catalog';
 import { fixedQuantity } from '../../services/pricing';
 import { hasStockAlert, setAlertsOptIn, toggleStockAlert } from '../../services/alerts';
 import { plain } from '../context';
@@ -30,13 +30,17 @@ export async function showShop(ctx: BotContext, parentId: string | null = null):
 
   // categories that have products or sub categories
   const visible = cats.filter((c) => (counts.get(c.id) ?? 0) > 0 || !parentId);
+  const uncategorized = parentId ? 0 : counts.get(UNCATEGORIZED) ?? 0;
   if (!visible.length) {
+    // no categories yet: list the products directly instead of an empty shop
+    if (uncategorized > 0) return showUncategorized(ctx);
     await show(ctx, tr(ctx, 'shop_empty'), [homeRow(ctx)]);
     return;
   }
   const buttons = visible.map((c) =>
     button({ text: loc(c, 'name', lang), customEmojiId: c.custom_emoji_id, fallbackEmoji: c.emoji || em.char('category'), style: c.button_style, data: cb('c', c.id) }, em),
   );
+  if (uncategorized > 0) buttons.push(button({ text: tr(ctx, 'btn_other_products'), emoji: 'product', style: 'default', data: cb('c', UNCATEGORIZED) }, em));
   const kb = grid(buttons, s.bot.category_columns);
   kb.push(parent ? backHomeRow(ctx, parent.parent_id ? cb('sc', parent.parent_id) : 'shop') : homeRow(ctx));
   const title = parent ? `${categoryEmojiHtml(ctx, parent)} <b>${escapeHtml(loc(parent, 'name', lang))}</b>\n\n${tr(ctx, 'shop_choose')}` : tr(ctx, 'shop_title');
@@ -52,9 +56,32 @@ export function productButtonText(ctx: BotContext, v: ProductView): string {
   return truncate(`${name} | ${priceText(p.unitPrice, p.originalUnitPrice)} | ${stock}`, 60);
 }
 
+function productButton(ctx: BotContext, v: ProductView): InlineButton {
+  const { s, em } = ctx.st;
+  const soldOut = v.pricing.soldOut;
+  return button({
+    text: productButtonText(ctx, v),
+    customEmojiId: soldOut ? null : v.product.custom_emoji_id,
+    fallbackEmoji: soldOut ? em.char('sold_out') : v.product.emoji || em.char('product'),
+    style: soldOut ? s.bot.sold_out_style : v.product.button_style ?? s.bot.in_stock_style,
+    data: soldOut ? cb('so', v.product.id) : cb('p', v.product.id),
+  }, em);
+}
+
+/** Products that have no category (a virtual "Other products" category). */
+export async function showUncategorized(ctx: BotContext): Promise<void> {
+  const { env, s, user } = ctx.st;
+  const [products, cats] = await Promise.all([listUncategorizedProducts(env, s, user), listCategories(env, null)]);
+  if (!products.length) return showShop(ctx);
+  const kb: InlineKeyboard = products.map((v) => [productButton(ctx, v)]);
+  kb.push(cats.length ? backHomeRow(ctx, 'shop') : homeRow(ctx));
+  await show(ctx, tr(ctx, cats.length ? 'category_other_view' : 'shop_all_products', { count: products.length }), kb);
+}
+
 export async function showCategory(ctx: BotContext, categoryId: string): Promise<void> {
   const { env, s, em, user } = ctx.st;
   const lang = user.lang;
+  if (categoryId === UNCATEGORIZED) return showUncategorized(ctx);
   const cat = await getCategory(env, categoryId);
   if (!cat || !cat.is_active) {
     await showShop(ctx);
@@ -66,18 +93,7 @@ export async function showCategory(ctx: BotContext, categoryId: string): Promise
   for (const sub of subs) {
     kb.push([button({ text: loc(sub, 'name', lang), customEmojiId: sub.custom_emoji_id, fallbackEmoji: sub.emoji || em.char('category'), style: sub.button_style, data: cb('c', sub.id) }, em)]);
   }
-  for (const v of products) {
-    const soldOut = v.pricing.soldOut;
-    kb.push([
-      button({
-        text: productButtonText(ctx, v),
-        customEmojiId: soldOut ? null : v.product.custom_emoji_id,
-        fallbackEmoji: soldOut ? em.char('sold_out') : v.product.emoji || em.char('product'),
-        style: soldOut ? s.bot.sold_out_style : v.product.button_style ?? s.bot.in_stock_style,
-        data: soldOut ? cb('so', v.product.id) : cb('p', v.product.id),
-      }, em),
-    ]);
-  }
+  for (const v of products) kb.push([productButton(ctx, v)]);
   kb.push(backHomeRow(ctx, cat.parent_id ? cb('c', cat.parent_id) : 'shop'));
 
   const reduced = products.filter((v) => !v.pricing.soldOut && discountPercent(v.pricing.unitPrice ?? 0, v.pricing.originalUnitPrice) > 0).length;

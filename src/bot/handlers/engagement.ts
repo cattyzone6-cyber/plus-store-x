@@ -176,10 +176,10 @@ export async function askReplaceDescription(ctx: BotContext, id: number, kind: '
 // Language
 // ─────────────────────────────────────────────────────────────────────────────
 
-export async function onSetLanguage(ctx: BotContext, lang: Lang): Promise<void> {
+export async function onSetLanguage(ctx: BotContext, lang: Lang, then?: () => Promise<void>): Promise<void> {
   await setUserLang(ctx.st.env, ctx.st.user.id, lang);
   ctx.st.user.lang = lang;
   ctx.st.user.lang_chosen = true;
   await answer(ctx, plain(tr(ctx, 'lang_changed')));
-  await showHome(ctx);
+  await (then ? then() : showHome(ctx));
 }
