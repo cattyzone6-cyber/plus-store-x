@@ -2,7 +2,6 @@ import type { AppCtx } from './env';
 import type { OrderRow } from './types';
 import { db, must } from './lib/db';
 import { enqueue } from './lib/jobs';
-import { checkAwaitingOrder } from './services/orders';
 import { syncDueProviders, checkProviderBalances } from './services/sync';
 import { pollPendingDeposits, expireDeposits } from './services/deposits';
 import { continueBroadcasts } from './services/broadcast';
@@ -27,19 +26,33 @@ async function step(name: string, fn: () => Promise<unknown>): Promise<void> {
 }
 
 /**
- * Runs every minute (wrangler.jsonc triggers). Each step is isolated so one failure
- * does not block the others. Steps keep their batches small to respect the Free plan
- * subrequest limit.
+ * Cron steps (every minute, wrangler.jsonc triggers). The scheduled handler runs each step
+ * in its own loopback invocation (see lib/loopback.ts) so every step gets its own Free plan
+ * subrequest budget; steps still keep their batches small.
  */
+export const CRON_STEPS: Record<string, (app: AppCtx, now: Date) => Promise<unknown>> = {
+  orders: (app, now) => sweepOrders(app, now),
+  deposits: async (app) => {
+    await pollPendingDeposits(app);
+    await expireDeposits(app);
+  },
+  broadcasts: (app) => continueBroadcasts(app), // free plan; paid plan re-enqueues itself
+  sync: (app) => syncDueProviders(app),
+  alerts: (app) => runAlerts(app),
+  slow: async (app, now) => {
+    if (await due(app, 'balances', 30, now)) await checkProviderBalances(app);
+    if (await due(app, 'giveaways', 5, now)) await finishDueGiveaways(app);
+  },
+};
+
+export async function runCronStep(app: AppCtx, name: string, now: Date): Promise<void> {
+  const fn = CRON_STEPS[name];
+  if (fn) await step(name, () => fn(app, now));
+}
+
+/** Fallback when no loopback is available (e.g. old runtimes): every step in this invocation. */
 export async function runCron(app: AppCtx, now: Date): Promise<void> {
-  await step('orders', () => sweepOrders(app, now));
-  await step('deposits', () => pollPendingDeposits(app));
-  await step('expire', () => expireDeposits(app));
-  await step('broadcasts', () => continueBroadcasts(app)); // free plan; paid plan re-enqueues itself
-  await step('sync', () => syncDueProviders(app));
-  await step('alerts', () => runAlerts(app));
-  if (await due(app, 'balances', 30, now)) await step('balances', () => checkProviderBalances(app));
-  if (await due(app, 'giveaways', 5, now)) await step('giveaways', () => finishDueGiveaways(app));
+  for (const name of Object.keys(CRON_STEPS)) await runCronStep(app, name, now);
 }
 
 /** Recover orders that were paid but never fulfilled, and poll async provider orders. */
@@ -91,5 +104,14 @@ async function sweepOrders(app: AppCtx, now: Date): Promise<void> {
     await db(env).from('orders').select('id').eq('status', 'awaiting_provider').lte('next_check_at', now.toISOString()).order('next_check_at').limit(5),
     'sweep awaiting',
   ) as { id: number }[];
-  for (const o of waiting) await checkAwaitingOrder(app, o.id);
+  // each check runs as its own job (own subrequest budget); push next_check_at first so the
+  // next tick cannot pick the same order while that job is still running
+  for (const o of waiting) {
+    const claimed = must(
+      await db(env).from('orders').update({ next_check_at: new Date(now.getTime() + 3 * 60_000).toISOString() })
+        .eq('id', o.id).eq('status', 'awaiting_provider').lte('next_check_at', now.toISOString()).select('id'),
+      'claim check',
+    ) as { id: number }[];
+    if (claimed.length) await enqueue(app, { type: 'check_order', orderId: o.id });
+  }
 }

@@ -257,7 +257,7 @@ export async function pollPendingDeposits(app: AppCtx): Promise<void> {
     }
   }
 
-  for (const d of rows.filter((x) => x.method !== 'binance_id').slice(0, 10)) {
+  for (const d of rows.filter((x) => x.method !== 'binance_id').slice(0, 5)) { // Free plan budget
     await checkDeposit(app, d.id);
   }
 }

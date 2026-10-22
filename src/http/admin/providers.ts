@@ -261,11 +261,15 @@ providerRoutes.post('/import', async (c) => {
 
   const created: string[] = [];
   if (b.mode === 'separate') {
-    for (const pp of pps) {
-      const product = check(await db(c.env).from('products').insert(productFromPP(pp, b.category_id ?? null)).select('id').single()) as { id: string };
-      check(await db(c.env).from('product_sources').insert({ product_id: product.id, kind: 'provider', provider_product_id: pp.id, priority: 0 }));
-      created.push(product.id);
+    // bulk inserts (Workers Free allows ~50 outgoing calls per request): ids are generated
+    // here so every source row can point at its product without a read-back
+    const products = pps.map((pp) => ({ id: crypto.randomUUID(), ...productFromPP(pp, b.category_id ?? null) }));
+    const sources = products.map((p, i) => ({ product_id: p.id, kind: 'provider', provider_product_id: pps[i].id, priority: 0 }));
+    for (let i = 0; i < products.length; i += 100) {
+      check(await db(c.env).from('products').insert(products.slice(i, i + 100)));
+      check(await db(c.env).from('product_sources').insert(sources.slice(i, i + 100)));
     }
+    created.push(...products.map((p) => p.id));
   } else {
     let productId = b.product_id;
     if (!productId) {

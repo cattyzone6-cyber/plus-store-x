@@ -24,7 +24,7 @@ export interface SyncStats {
 }
 
 const CHUNK = 200;
-const MAX_PRODUCT_UPDATES = 30; // per sync, keeps subrequests low on the free plan
+const MAX_PRODUCT_UPDATES = 400; // per sync; written in bulk upserts
 const COST_ALERT_RATIO = 0.1;
 
 type ExistingRow = Pick<ProviderProductRow, 'id' | 'external_id' | 'name' | 'cost' | 'stock' | 'is_available' | 'is_removed' | 'content_hash' | 'last_changed_at'>;
@@ -217,9 +217,10 @@ async function refreshProductInfo(
     const ex = byExt.get(p.external_id);
     if (ex) feedByPpId.set(ex.id, p);
   }
-  let updates = 0;
+  // changed products are written in bulk (one upsert per 200) to stay within the Free plan budget
+  const rows: Record<string, unknown>[] = [];
   for (const product of products) {
-    if (!product.auto_sync_info || updates >= MAX_PRODUCT_UPDATES) continue;
+    if (!product.auto_sync_info || rows.length >= MAX_PRODUCT_UPDATES) continue;
     const primary = sources
       .filter((s) => s.product_id === product.id && s.kind === 'provider' && s.is_enabled)
       .sort((a, b) => a.priority - b.priority)[0];
@@ -241,11 +242,17 @@ async function refreshProductInfo(
       if ((product as unknown as Record<string, unknown>)[f] !== v) patch[f] = v;
     }
     if (Object.keys(patch).length) {
-      must(await db(app.env).from('products').update(patch).eq('id', product.id), `product refresh ${prov.name}`);
-      updates++;
+      // every row carries all syncable fields (current value when unchanged/locked) so one
+      // upsert statement fits all of them
+      const row: Record<string, unknown> = { id: product.id };
+      for (const f of SYNCABLE_FIELDS) row[f] = f in patch ? patch[f] : (product as unknown as Record<string, unknown>)[f];
+      rows.push(row);
     }
   }
-  return updates;
+  for (const c of chunks(rows)) {
+    must(await db(app.env).from('products').upsert(c, { onConflict: 'id' }), `product refresh ${prov.name}`);
+  }
+  return rows.length;
 }
 
 /** Cron: sync up to 2 providers whose interval elapsed. */
