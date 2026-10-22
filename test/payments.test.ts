@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { nowpaymentsSignature, sortKeysDeep, verifyNowpaymentsSignature, mapNowStatus } from '../src/payments/nowpayments';
+import { nowpaymentsSignature, payCurrency, sortKeysDeep, verifyNowpaymentsSignature, mapNowStatus } from '../src/payments/nowpayments';
+import { DEFAULT_SETTINGS, type AppSettings } from '../src/lib/settings';
 import { binancePaySignature, parseBinancePayWebhook } from '../src/payments/binancePay';
 import { matchTransaction, type PayTransaction } from '../src/payments/binanceId';
 import { fmtAmount } from '../src/payments/util';
@@ -89,5 +90,17 @@ describe('fmtAmount', () => {
     expect(fmtAmount(10)).toBe('10.00');
     expect(fmtAmount(10.37)).toBe('10.37');
     expect(fmtAmount(12.345678)).toBe('12.345678');
+  });
+});
+
+describe('NOWPayments coin code', () => {
+  const withCoin = (pay_currency: string) =>
+    ({ ...DEFAULT_SETTINGS, payments: { ...DEFAULT_SETTINGS.payments, nowpayments: { ...DEFAULT_SETTINGS.payments.nowpayments, pay_currency } } }) as AppSettings;
+  it('cleans typed codes so NOWPayments accepts them', () => {
+    expect(payCurrency(withCoin('usdt bsc'))).toBe('usdtbsc');
+    expect(payCurrency(withCoin('USDT-BSC'))).toBe('usdtbsc');
+    expect(payCurrency(withCoin('USDT BEP20'))).toBe('usdtbsc');
+    expect(payCurrency(withCoin('usdttrc20'))).toBe('usdttrc20');
+    expect(payCurrency(withCoin(''))).toBe('usdtbsc');
   });
 });

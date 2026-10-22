@@ -12,8 +12,16 @@ import { fetchJson, GatewayError, grossAmount, fmtAmount, minutesLeft, patchDepo
 // NOWPayments crypto invoices (USDT BEP20 = pay_currency 'usdtbsc' by default).
 // Docs: https://documenter.getpostman.com/view/7907941/2s93JusNJt
 
-function apiBase(s: AppSettings): string {
+export function apiBase(s: AppSettings): string {
   return s.payments.nowpayments.sandbox ? 'https://api-sandbox.nowpayments.io/v1' : 'https://api.nowpayments.io/v1';
+}
+
+const COIN_ALIASES: Record<string, string> = { usdtbep20: 'usdtbsc', usdtbnb: 'usdtbsc', bep20: 'usdtbsc', trc20: 'usdttrc20', usdttron: 'usdttrc20' };
+
+/** NOWPayments coin code: lowercase letters/digits only ("USDT BSC" → "usdtbsc"); empty → USDT BEP20. */
+export function payCurrency(s: AppSettings): string {
+  const code = (s.payments.nowpayments.pay_currency ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  return COIN_ALIASES[code] ?? (code || 'usdtbsc');
 }
 
 /** Recursively sort object keys (NOWPayments signs the key-sorted JSON). */
@@ -71,10 +79,10 @@ const NETWORK_NAMES: Record<string, string> = { bsc: 'BEP20 (BNB Smart Chain)', 
 async function create(app: AppCtx, s: AppSettings, input: GatewayInput): Promise<DepositInstructions> {
   const { env } = app;
   const d = input.deposit;
-  const cfg = s.payments.nowpayments;
   const key = await apiKey(env);
   const hook = baseUrl(s);
   const gross = grossAmount(d);
+  const coin = payCurrency(s);
 
   const p = await fetchJson<NowPayment>(`${apiBase(s)}/payment`, {
     method: 'POST',
@@ -82,7 +90,7 @@ async function create(app: AppCtx, s: AppSettings, input: GatewayInput): Promise
     body: JSON.stringify({
       price_amount: gross,
       price_currency: 'usd',
-      pay_currency: cfg.pay_currency || 'usdtbsc',
+      pay_currency: coin,
       order_id: d.reference ?? d.id,
       order_description: `${s.brand.name} wallet top-up ${fmtUsd(d.amount_usd)}`,
       ...(hook ? { ipn_callback_url: `${hook}/webhook/nowpayments` } : {}),
@@ -95,14 +103,14 @@ async function create(app: AppCtx, s: AppSettings, input: GatewayInput): Promise
     external_id: String(p.payment_id),
     pay_address: p.pay_address,
     pay_amount: Number(p.pay_amount),
-    pay_currency: (p.pay_currency ?? cfg.pay_currency).toUpperCase(),
+    pay_currency: (p.pay_currency ?? coin).toUpperCase(),
     ...(expires && !isNaN(expires.getTime()) && d.expires_at && expires < new Date(d.expires_at) ? { expires_at: expires.toISOString() } : {}),
     meta: { ...d.meta, network: p.network ?? null, payin_extra_id: p.payin_extra_id ?? null },
   });
 
   const em = await getEmojiResolver(env, s);
   const lang = input.lang;
-  const currency = (p.pay_currency ?? cfg.pay_currency).toLowerCase().startsWith('usdt') ? 'USDT' : (p.pay_currency ?? '').toUpperCase();
+  const currency = (p.pay_currency ?? coin).toLowerCase().startsWith('usdt') ? 'USDT' : (p.pay_currency ?? coin).toUpperCase();
   const html = t(s, lang, 'pay_nowpayments_instructions', {
     credit: fmtUsd(deposit.amount_usd),
     fee_line: raw(Number(deposit.fee_usd) > 0 ? t(s, lang, 'pay_fee_line', { fee: fmtUsd(deposit.fee_usd) }, em) : ''),
