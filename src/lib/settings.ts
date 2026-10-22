@@ -102,6 +102,8 @@ export interface AppSettings {
       pay_id: string;
       receiver_name: string;
       fee_percent: number;
+      /** 'manual' = customer sends proof, an admin approves (no API key needed); 'auto' = matched with a read-only Binance API key */
+      verify: 'manual' | 'auto';
       /** add random cents so transfers can be matched by amount */
       unique_amount: boolean;
       instructions_en: string;
@@ -268,6 +270,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
       pay_id: '',
       receiver_name: '',
       fee_percent: 0,
+      verify: 'manual',
       unique_amount: true,
       instructions_en: '',
       instructions_ar: '',

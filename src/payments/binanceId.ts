@@ -144,10 +144,12 @@ async function create(app: AppCtx, s: AppSettings, input: GatewayInput): Promise
 
   const deposit = await patchDeposit(env, d.id, { pay_amount: payAmount, pay_currency: 'USDT' });
 
+  // automatic matching needs verify = 'auto' AND a read-only API key; otherwise an admin approves the proof
+  const auto = cfg.verify === 'auto' && !!(await credentials(env));
   const em = await getEmojiResolver(env, s);
   const lang = input.lang;
   const instr = (lang === 'ar' ? cfg.instructions_ar : cfg.instructions_en) || cfg.instructions_en;
-  const html = t(s, lang, 'pay_binance_id_instructions', {
+  const html = t(s, lang, auto ? 'pay_binance_id_instructions' : 'pay_binance_id_manual_instructions', {
     credit: fmtUsd(deposit.amount_usd),
     fee_line: raw(Number(deposit.fee_usd) > 0 ? t(s, lang, 'pay_fee_line', { fee: fmtUsd(deposit.fee_usd) }, em) : ''),
     amount: fmtAmount(payAmount),
@@ -166,7 +168,9 @@ async function create(app: AppCtx, s: AppSettings, input: GatewayInput): Promise
       { label: t(s, lang, 'pay_label_amount'), value: fmtAmount(payAmount) },
       { label: t(s, lang, 'pay_label_reference'), value: deposit.reference ?? '' },
     ],
-    canCheck: true,
+    canCheck: auto,
+    // auto: a pasted Order ID is matched first, then falls back to admin review
+    needsProof: true,
   };
 }
 

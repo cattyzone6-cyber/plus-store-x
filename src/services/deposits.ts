@@ -247,7 +247,7 @@ export async function pollPendingDeposits(app: AppCtx): Promise<void> {
 
   // Binance Pay ID: one history call shared by every open deposit
   const bid = rows.filter((d) => d.method === 'binance_id');
-  if (bid.length && s.payments.binance_id.enabled) {
+  if (bid.length && s.payments.binance_id.enabled && s.payments.binance_id.verify === 'auto') {
     try {
       const start = Math.min(...bid.map((d) => new Date(d.created_at).getTime())) - 5 * 60_000;
       const txs = await fetchPayTransactions(env, start);
@@ -320,7 +320,7 @@ export async function attachProof(app: AppCtx, depositId: string, proof: { fileI
   });
 
   // Binance Pay ID: a pasted Order ID may match automatically
-  if (d.method === 'binance_id' && proof.text) {
+  if (d.method === 'binance_id' && proof.text && (await getSettings(env)).payments.binance_id.verify === 'auto') {
     d = await checkDeposit(app, d.id);
     if (d.status === 'paid') return d;
   }
