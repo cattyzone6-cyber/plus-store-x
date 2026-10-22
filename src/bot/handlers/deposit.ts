@@ -105,7 +105,7 @@ export async function renderDepositInstructions(ctx: BotContext, ins: DepositIns
   const kb: InlineKeyboard = [];
   if (ins.payUrl) kb.push([button({ text: tr(ctx, 'btn_open_payment'), emoji: 'link', url: ins.payUrl, style: 'primary' }, em)]);
   for (const c of ins.copyValues ?? []) {
-    kb.push([button({ text: tr(ctx, 'btn_copy', { label: c.label }), emoji: 'key', copy: c.value }, em)]);
+    kb.push([button({ text: tr(ctx, 'btn_copy', { label: c.label }), copy: c.value }, em)]); // Telegram adds its own copy icon
   }
   if (ins.needsProof) kb.push([btn(ctx, 'btn_send_proof', cb('dep', 'proof', d.id), 'download', 'success')]);
   if (ins.canCheck) kb.push([btn(ctx, 'btn_check_payment', cb('dep', 'check', d.id), 'confirm', 'success')]);
