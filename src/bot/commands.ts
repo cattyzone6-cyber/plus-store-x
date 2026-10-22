@@ -5,6 +5,7 @@ import { tg } from '../lib/telegram';
 export const COMMANDS: { command: string; en: string; ar: string }[] = [
   { command: 'start', en: 'Open the shop', ar: 'افتح المتجر' },
   { command: 'shop', en: 'Browse products', ar: 'تصفح المنتجات' },
+  { command: 'search', en: 'Search products', ar: 'ابحث عن منتج' },
   { command: 'product', en: 'Price list — everything in stock', ar: 'قائمة الأسعار — كل المتوفر' },
   { command: 'freebies', en: 'Free resources', ar: 'موارد مجانية' },
   { command: 'deposit', en: 'Add funds to your wallet', ar: 'اشحن محفظتك' },

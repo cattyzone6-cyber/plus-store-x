@@ -12,6 +12,7 @@ import {
   askReplaceDescription, askTicket, onJoinGiveaway, onSetLanguage, onTicketMessage, showFreebie, showFreebies,
   showGiveaway, showGiveaways, showReplaceList, showReplaceOrder, showSupport,
 } from './handlers/engagement';
+import { askSearch, runSearch } from './handlers/search';
 import { cmdAdmin, cmdEmoji, cmdSetEmoji, isAdminState, onAdminCallback, onAdminMessage } from './admin';
 import { checkForceJoin } from './forceJoin';
 import { rpc } from '../lib/db';
@@ -45,6 +46,7 @@ export async function onCallback(ctx: BotContext, data: string, botUsername: str
     case 'c': return showCategory(ctx, a);
     case 'so': return showProduct(ctx, a); // sold-out products open too ("notify me" button)
     case 'na': return onToggleNotifyMe(ctx, a);
+    case 'srch': return askSearch(ctx);
     case 'g': return showGroup(ctx, a);
     case 'p': return showProduct(ctx, a);
     case 'b': return startBuy(ctx, a);
@@ -116,6 +118,7 @@ export async function onCommand(ctx: BotContext, command: string, arg: string, b
   switch (command) {
     case 'start': return onStart(ctx, arg);
     case 'shop': return showShop(ctx);
+    case 'search': case 'find': return arg ? runSearch(ctx, arg) : askSearch(ctx);
     case 'product': case 'products': case 'prices': return showPriceList(ctx);
     case 'deposit': return showDepositMenu(ctx);
     case 'history': case 'orders': return showOrders(ctx, 0);
@@ -220,6 +223,7 @@ export async function onMessage(ctx: BotContext): Promise<void> {
       if (!photoId && !text) return void (await ctx.reply(tr(ctx, 'deposit_proof_prompt'), { parse_mode: 'HTML' }));
       return onProof(ctx, data, { fileId: photoId, text: text || undefined });
     case 'await_redeem': return text ? onRedeemText(ctx, text) : void 0;
+    case 'await_search': return text ? runSearch(ctx, text) : void 0;
     case 'await_ticket':
       if (!text && !photoId) return;
       return onTicketMessage(ctx, 'support', undefined, { text: text || undefined, fileId: photoId });

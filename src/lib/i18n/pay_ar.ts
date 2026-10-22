@@ -76,6 +76,10 @@ export const payAr: Record<string, string> = {
     '{e:cancel} <b>لم تتم الموافقة على الإيداع</b>\n\nالمرجع <code>{reference}</code> ({amount}) مرفوض.{note}\nإذا كنت تعتقد أن هذا خطأ، تواصل مع الدعم مع إثبات الدفع.',
   pay_deposit_expired:
     '{e:clock} <b>انتهت مهلة الدفع</b>\n\nالمرجع <code>{reference}</code> ({amount}) لم يُدفع في الوقت المحدد. إذا كنت قد أرسلت المبلغ، تواصل مع الدعم مع تفاصيل العملية.',
+  pay_reminder:
+    '{e:clock} <b>دفعتك ما زالت مفتوحة</b>\n\nالمرجع <code>{reference}</code> ({amount}) — بقي حوالي <b>{minutes} دقيقة</b> قبل انتهاء المهلة. دفعت بالفعل؟ اضغط الزر بالأسفل.',
+  pay_reminder_order:
+    '{e:clock} <b>طلبك بانتظار الدفع</b>\n\nالطلب <code>{code}</code> · {amount} — بقي حوالي <b>{minutes} دقيقة</b> قبل انتهاء المهلة. دفعت بالفعل؟ اضغط الزر بالأسفل.',
   pay_deposit_cancelled: '{e:cancel} تم إلغاء الإيداع <code>{reference}</code>.',
   pay_still_pending:
     '{e:clock} لم نستلم هذه الدفعة بعد. قد تستغرق تحويلات بينانس / الشبكة بضع دقائق — حاول مرة أخرى بعد قليل.',

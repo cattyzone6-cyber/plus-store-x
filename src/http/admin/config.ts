@@ -324,7 +324,7 @@ configRoutes.post('/system/webhook', async (c) => {
   await tg(c.env, 'setWebhook', {
     url: `${base}/webhook/telegram`,
     secret_token: c.env.TELEGRAM_WEBHOOK_SECRET,
-    allowed_updates: ['message', 'callback_query', 'my_chat_member'],
+    allowed_updates: ['message', 'callback_query', 'my_chat_member', 'inline_query'],
     drop_pending_updates: false,
     max_connections: 40,
   });

@@ -102,6 +102,23 @@ export const en = {
   category_other_view: '{e:product} <b>Other products</b>\n\n<i>{count} products — tap one to see the details.</i>',
   shop_all_products: '{e:shop} <b>Shop</b>\n\n<i>{count} products — tap one to see the details.</i>',
   shop_empty: '{e:shop} <b>Shop</b>\n\n<i>No products yet — check back soon!</i>',
+
+  // ── search ──
+  btn_search: 'Search',
+  btn_search_again: 'Search again',
+  btn_browse_shop: 'Browse the shop',
+  btn_open_in_bot: 'Open in bot',
+  search_prompt: '🔍 <b>Search</b>\n\nType what you are looking for — a product or brand name, e.g. <i>ChatGPT</i> or <i>CapCut 1M</i>.',
+  search_too_short: '🔍 Type at least 2 letters or numbers to search.',
+  search_results: '🔍 <b>Results for</b> “{query}”\n\n<i>{count} found — tap one to open it. Type another word to search again.</i>',
+  search_none: '🔍 No results for “{query}”.\n\n<i>Try a shorter word or just the brand name — or browse the shop.</i>',
+  inline_open_shop: 'Open the shop',
+  inline_group_desc: 'from {price} · in stock',
+  inline_pack_desc: '{price} · {stock}',
+  inline_sold_out: 'Sold out',
+  inline_group_card: '{emoji} <b>{name}</b>\n{e:price} From <b>{price}</b> · {count} options\n{description}',
+  inline_pack_card: '{emoji} <b>{name}</b>\n{e:price} Price: <b>{price}</b>\n{e:stock} {stock}\n{description}',
+
   category_view: '{emoji} <b>{name}</b>\n{description}\n{sale}<i>{count} products — tap one to see the details.</i>',
   category_empty: '{emoji} <b>{name}</b>\n{description}\n<i>No products in this category right now.</i>',
   category_sale_line: '{e:sale} <b>Sale on</b> — <i>{n} of {count} reduced, prices below already include it.</i>',

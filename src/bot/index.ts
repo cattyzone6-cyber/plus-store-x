@@ -12,6 +12,7 @@ import { safeEqual } from '../lib/crypto';
 import { escapeHtml } from '../lib/i18n';
 import { getOrCreateUser, markBlocked } from '../services/users';
 import { notifyAdminsLater } from '../services/notify';
+import { onInlineQuery } from './handlers/search';
 
 // Per-request data keyed by the update object (isolates serve requests concurrently,
 // so nothing request-specific may live in module scope).
@@ -39,6 +40,16 @@ function install(bot: Bot<BotContext>): void {
     const app = requests.get(ctx.update);
     if (!app || !ctx.from || ctx.from.is_bot) return;
     const { env } = app;
+
+    // inline mode (@bot query): answered without creating a user or running the gates
+    if (ctx.inlineQuery) {
+      try {
+        await onInlineQuery(ctx, app);
+      } catch (e) {
+        console.error('inline query failed', e);
+      }
+      return;
+    }
 
     if (ctx.myChatMember) {
       if (ctx.myChatMember.chat.type === 'private' && ctx.myChatMember.new_chat_member.status === 'kicked') await markBlocked(env, ctx.from.id);

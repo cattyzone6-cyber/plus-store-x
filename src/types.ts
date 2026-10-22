@@ -305,6 +305,7 @@ export interface DepositRow {
   paid_at: string | null;
   reviewed_by: string | null;
   review_note: string | null;
+  reminded_at?: string | null;
 }
 
 export interface PromoCodeRow {

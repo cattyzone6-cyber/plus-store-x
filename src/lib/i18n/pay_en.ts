@@ -78,6 +78,10 @@ export const payEn: Record<string, string> = {
     '{e:cancel} <b>Deposit not approved</b>\n\nRef <code>{reference}</code> ({amount}) was rejected.{note}\nIf you think this is a mistake, contact support with your proof.',
   pay_deposit_expired:
     '{e:clock} <b>Payment expired</b>\n\nRef <code>{reference}</code> ({amount}) was not paid in time. If you already sent the money, contact support with the transaction details.',
+  pay_reminder:
+    '{e:clock} <b>Your payment is still open</b>\n\nRef <code>{reference}</code> ({amount}) — about <b>{minutes} min</b> left before it expires. Already paid? Tap the button below.',
+  pay_reminder_order:
+    '{e:clock} <b>Your order is waiting for payment</b>\n\nOrder <code>{code}</code> · {amount} — about <b>{minutes} min</b> left before it expires. Already paid? Tap the button below.',
   pay_deposit_cancelled: '{e:cancel} Deposit <code>{reference}</code> cancelled.',
   pay_still_pending:
     '{e:clock} We have not received this payment yet. Blockchain / Binance transfers can take a few minutes — try again shortly.',
