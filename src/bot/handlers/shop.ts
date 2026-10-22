@@ -3,6 +3,8 @@ import { answer, show, tr } from '../context';
 import { backHomeRow, btn, cb, chunkLines, discountPercent, homeRow, loc, priceHtml, priceText, truncate } from '../ui';
 import { getCategory, getProductView, listAllProducts, listCategories, listProducts, productCounts, type ProductView } from '../../services/catalog';
 import { fixedQuantity } from '../../services/pricing';
+import { hasStockAlert, setAlertsOptIn, toggleStockAlert } from '../../services/alerts';
+import { plain } from '../context';
 import { customEmojiHtml } from '../../lib/emoji';
 import { escapeHtml, raw } from '../../lib/i18n';
 import { button, grid, type InlineButton, type InlineKeyboard } from '../../lib/telegram';
@@ -158,6 +160,10 @@ export async function showProduct(ctx: BotContext, productId: string): Promise<v
 
   const kb: InlineKeyboard = [];
   if (!v.pricing.soldOut) kb.push([btn(ctx, 'btn_buy_now', cb('b', product.id), 'shop', s.bot.buy_style)]);
+  else if (s.alerts.notify_me) {
+    const on = await hasStockAlert(env, user.id, product.id);
+    kb.push([btn(ctx, on ? 'btn_notify_on' : 'btn_notify_me', cb('na', product.id), 'bell', on ? 'success' : 'primary')]);
+  }
   kb.push(backHomeRow(ctx, product.category_id ? cb('c', product.category_id) : 'shop'));
   await show(ctx, html, kb, { imageUrl: product.image_url });
 }
@@ -217,4 +223,20 @@ export async function showPriceList(ctx: BotContext): Promise<void> {
       reply_markup: last ? ({ inline_keyboard: [[btn(ctx, 'btn_shop', 'shop', 'shop', 'primary')], homeRow(ctx)] } as never) : undefined,
     });
   }
+}
+
+/** "Notify me when available" on a sold-out product (toggles). */
+export async function onToggleNotifyMe(ctx: BotContext, productId: string): Promise<void> {
+  const on = await toggleStockAlert(ctx.st.env, ctx.st.user.id, productId);
+  await answer(ctx, plain(tr(ctx, on ? 'notify_me_added' : 'notify_me_removed')), on);
+  await showProduct(ctx, productId);
+}
+
+/** Profile switch for new-product / back-in-stock announcements. */
+export async function onToggleAlerts(ctx: BotContext, next: () => Promise<void>): Promise<void> {
+  const on = !ctx.st.user.alerts_opt_in;
+  await setAlertsOptIn(ctx.st.env, ctx.st.user.id, on);
+  ctx.st.user = { ...ctx.st.user, alerts_opt_in: on };
+  await answer(ctx, plain(tr(ctx, on ? 'alerts_turned_on' : 'alerts_turned_off')));
+  await next();
 }

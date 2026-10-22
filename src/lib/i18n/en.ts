@@ -334,4 +334,19 @@ export const en = {
   order_refunded_auto:
     '{e:refund} <b>Order {code} refunded</b>\n\nWe could not deliver <b>{product}</b> right now, so <b>{amount}</b> was returned to your wallet.',
   order_refunded: '{e:refund} <b>Refund for order {code}</b>\n\n<b>{amount}</b> was added back to your wallet.',
+
+  // ── customer alerts ──
+  btn_notify_me: 'Notify me when available',
+  btn_notify_on: "You'll be notified — tap to cancel",
+  notify_me_added: "Done! We'll message you as soon as it's back in stock.",
+  notify_me_removed: 'Alert removed.',
+  btn_alerts_on: 'Store alerts: ON',
+  btn_alerts_off: 'Store alerts: OFF',
+  alerts_turned_on: "Alerts on — you'll hear about new products and restocks.",
+  alerts_turned_off: 'Alerts off — no more new-product or restock messages.',
+  btn_open_shop: 'Open the shop',
+  alert_line: '{emoji} <b>{name}</b> — {price}',
+  alert_new_products: '{e:fire} <b>New in the store!</b>\n\n{lines}\n\n<i>Tap below to buy</i> 👇',
+  alert_back_in_stock: '{e:success} <b>Back in stock!</b>\n\n{lines}\n\n<i>Get it before it runs out</i> 👇',
+  alert_notify_me: '{e:bell} <b>Good news!</b>\n\n{emoji} <b>{name}</b> is back in stock.\n{e:price} Price: <b>{price}</b>',
 } as const;

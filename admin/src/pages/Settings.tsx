@@ -249,7 +249,7 @@ export default function SettingsPage() {
             yesNo('Freebies', 'freebies'), yesNo('Referrals', 'referrals'), yesNo('Cashback points', 'cashback'), yesNo('Giveaways', 'giveaways'),
             yesNo('Discount levels', 'discount_levels'), yesNo('Redeem codes', 'redeem_codes'), yesNo('Promo codes at checkout', 'promo_codes'),
             yesNo('Replacement requests (warranty)', 'replacements'), yesNo('Reseller API for customers', 'reseller_api'),
-            yesNo('Post new stock to channel', 'stock_channel_posts'), yesNo('"Download as TXT" button', 'download_txt'),
+            yesNo('Post new products & restocks to the channel', 'stock_channel_posts'), yesNo('"Download as TXT" button', 'download_txt'),
           ]} />
         )}
 
@@ -330,6 +330,15 @@ export default function SettingsPage() {
             yesNo('Deposit paid', 'events.deposit_paid'), yesNo('Deposit needs review', 'events.deposit_review'), yesNo('New ticket', 'events.ticket'),
             yesNo('Low provider balance', 'events.low_provider_balance'), yesNo('Low stock', 'events.low_stock'),
             yesNo('Provider catalog changes', 'events.catalog_changes'), yesNo('New user', 'events.new_user'),
+          ]} />
+        )}
+        {section === 'notifications' && (
+          <Section title="Customer alerts" section="alerts" settings={s} fields={[
+            yesNo('Announce new products', 'new_products', 'Sent to every customer who has alerts on (they can turn them off in their profile)'),
+            yesNo('Announce back in stock', 'restock', 'When a sold-out product becomes available again (provider restock or your own stock upload)'),
+            yesNo('"Notify me" button on sold-out products', 'notify_me', 'Personal message to the customers who asked'),
+            { path: 'new_delay_minutes', label: 'Wait before announcing a new product (minutes)', type: 'number', hint: 'Time to edit the name and price after importing' },
+            { path: 'restock_cooldown_hours', label: 'Same product restock alert at most every (hours)', type: 'number' },
           ]} />
         )}
 

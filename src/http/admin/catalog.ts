@@ -6,6 +6,7 @@ import { getSettings } from '../../lib/settings';
 import { loadOptions } from '../../services/catalog';
 import { priceProduct, requiredInputs } from '../../services/pricing';
 import { SYNCABLE_FIELDS } from '../../services/sync-fields';
+import { markRestocked } from '../../services/alerts';
 import { body, check, fail, likePattern, log, paging, requireOwner, type AdminEnv } from './util';
 
 export const catalogRoutes = new Hono<AdminEnv>();
@@ -360,6 +361,7 @@ catalogRoutes.post('/products/:id/stock', async (c) => {
     skipped += before - items.length;
   }
   const admin = c.get('admin');
+  const { count: availableBefore } = await db(c.env).from('stock_items').select('id', { count: 'exact', head: true }).eq('product_id', productId).eq('status', 'available');
   for (let i = 0; i < items.length; i += 500) {
     check(await db(c.env).from('stock_items').insert(items.slice(i, i + 500).map((content) => ({
       product_id: productId, content, batch: b.batch ?? null, created_by: admin.user_id,
@@ -368,6 +370,8 @@ catalogRoutes.post('/products/:id/stock', async (c) => {
   // make sure the product has a stock source
   const existingStock = check(await db(c.env).from('product_sources').select('id').eq('product_id', productId).eq('kind', 'stock')) as { id: string }[];
   if (!existingStock.length) await db(c.env).from('product_sources').insert({ product_id: productId, kind: 'stock', priority: 0 });
+  // empty → refilled: customers get a "back in stock" alert on the next cron tick
+  if (items.length && !availableBefore) await markRestocked(c.env, [productId]);
   await log(c, 'stock.add', 'product', productId, { added: items.length, skipped });
   return c.json({ ok: true, added: items.length, skipped });
 });

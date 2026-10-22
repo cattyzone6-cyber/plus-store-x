@@ -23,6 +23,7 @@ export interface UserRow {
   ban_reason: string | null;
   blocked_bot: boolean;
   joined_verified: boolean;
+  alerts_opt_in: boolean;
   state: UserState | null;
   note: string | null;
   joined_at: string;
@@ -169,6 +170,9 @@ export interface ProductRow {
   sold_count: number;
   delivery_note_en: string | null;
   delivery_note_ar: string | null;
+  announced_at: string | null;
+  restocked_at: string | null;
+  last_restock_alert_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -346,7 +350,8 @@ export interface BroadcastRow {
   text_ar: string | null;
   image_url: string | null;
   buttons: { text: string; url: string }[];
-  target: 'all' | 'lang_en' | 'lang_ar' | 'buyers' | 'non_buyers';
+  target: 'all' | 'lang_en' | 'lang_ar' | 'buyers' | 'non_buyers' | 'alerts';
+  auto: boolean;
   status: 'draft' | 'queued' | 'sending' | 'done' | 'cancelled';
   cursor_id: number;
   sent: number;

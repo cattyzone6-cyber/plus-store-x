@@ -27,6 +27,7 @@ export async function runBroadcastBatch(app: AppCtx, broadcastId: string): Promi
   if (b.target === 'lang_ar') q = q.eq('lang', 'ar');
   if (b.target === 'buyers') q = q.gt('orders_count', 0);
   if (b.target === 'non_buyers') q = q.eq('orders_count', 0);
+  if (b.target === 'alerts') q = q.eq('alerts_opt_in', true);
   const users = must(await q, 'broadcast users') as Pick<UserRow, 'id' | 'lang'>[];
 
   if (!users.length) {
