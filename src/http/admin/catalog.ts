@@ -67,8 +67,15 @@ catalogRoutes.delete('/categories/:id', ownerOnly, async (c) => {
 });
 
 catalogRoutes.post('/categories/reorder', ownerOnly, async (c) => {
-  const b = await body(c, z.object({ ids: z.array(z.string().uuid()) }));
-  await Promise.all(b.ids.map((id, i) => db(c.env).from('categories').update({ sort: i }).eq('id', id)));
+  const b = await body(c, z.object({ ids: z.array(z.string().uuid()).max(1000) }));
+  if (!b.ids.length) return c.json({ ok: true });
+  // bulk upsert (see /products/reorder)
+  const rows = check(await db(c.env).from('categories').select('id,name_en').in('id', b.ids)) as { id: string; name_en: string }[];
+  const names = new Map(rows.map((r) => [r.id, r.name_en]));
+  check(await db(c.env).from('categories').upsert(
+    b.ids.filter((id) => names.has(id)).map((id, i) => ({ id, name_en: names.get(id)!, sort: i })),
+    { onConflict: 'id' },
+  ));
   return c.json({ ok: true });
 });
 
@@ -255,9 +262,36 @@ catalogRoutes.delete('/products/:id', ownerOnly, async (c) => {
 });
 
 catalogRoutes.post('/products/reorder', ownerOnly, async (c) => {
-  const b = await body(c, z.object({ ids: z.array(z.string().uuid()) }));
-  await Promise.all(b.ids.map((id, i) => db(c.env).from('products').update({ sort: i }).eq('id', id)));
+  const b = await body(c, z.object({ ids: z.array(z.string().uuid()).max(1000) }));
+  if (!b.ids.length) return c.json({ ok: true });
+  // one bulk upsert instead of one update per product (Workers Free: ~50 calls per request);
+  // name_en is carried because an upsert row must satisfy NOT NULL columns
+  const rows = check(await db(c.env).from('products').select('id,name_en').in('id', b.ids)) as { id: string; name_en: string }[];
+  const names = new Map(rows.map((r) => [r.id, r.name_en]));
+  const payload = b.ids.filter((id) => names.has(id)).map((id, i) => ({ id, name_en: names.get(id)!, sort: i }));
+  check(await db(c.env).from('products').upsert(payload, { onConflict: 'id' }));
   return c.json({ ok: true });
+});
+
+/** Bulk actions from the Products list (one query for any number of products). */
+catalogRoutes.post('/products/bulk', ownerOnly, async (c) => {
+  const b = await body(c, z.object({
+    ids: z.array(z.string().uuid()).min(1).max(1000),
+    action: z.enum(['move', 'show', 'hide', 'feature', 'unfeature']),
+    category_id: z.string().uuid().nullable().optional(),
+  }));
+  const patch =
+    b.action === 'move' ? { category_id: b.category_id ?? null }
+    : b.action === 'show' ? { is_active: true }
+    : b.action === 'hide' ? { is_active: false }
+    : { is_featured: b.action === 'feature' };
+  if (b.action === 'move' && b.category_id) {
+    const cat = check(await db(c.env).from('categories').select('id').eq('id', b.category_id).maybeSingle());
+    if (!cat) fail(404, 'Category not found');
+  }
+  const rows = check(await db(c.env).from('products').update(patch).in('id', b.ids).select('id')) as { id: string }[];
+  await log(c, `product.bulk_${b.action}`, 'products', `${rows.length}`, { ids: b.ids, ...patch });
+  return c.json({ ok: true, updated: rows.length });
 });
 
 catalogRoutes.post('/products/:id/duplicate', ownerOnly, async (c) => {
