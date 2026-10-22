@@ -154,6 +154,22 @@ function Secrets({ keys }: { keys: string[] }) {
   );
 }
 
+/** "Test keys" for one gateway: a read-only call with the saved keys, result shown inline. */
+function KeyTest({ method, label }: { method: 'binance_pay' | 'binance_id' | 'nowpayments'; label: string }) {
+  const { run, busy } = useAction();
+  const [res, setRes] = useState<{ ok: boolean; message: string } | null>(null);
+  const test = async () => {
+    const r = await run(method, () => api<{ result: { ok: boolean; message: string } }>(`/payments/test/${method}`, { method: 'POST' }));
+    if (r) setRes(r.result);
+  };
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-sm">
+      <Button size="sm" loading={busy === method} onClick={test}>Test {label}</Button>
+      {res && <span className={res.ok ? 'text-emerald-400' : 'text-red-400'}>{res.ok ? '✓' : '✗'} {res.message}</span>}
+    </div>
+  );
+}
+
 function TextsEditor() {
   const q = useApi<{ items: { key: string; default_en: string; default_ar: string; en: string; ar: string }[] }>('/texts');
   const [search, setSearch] = useState('');
@@ -297,6 +313,12 @@ export default function SettingsPage() {
             <Card title="Payment API keys (encrypted)">
               <p className="mb-3 text-xs text-ink-400">Binance Pay merchant keys come from merchant.binance.com. The Pay ID method needs a <b>read-only</b> Binance API key. NOWPayments: API key + IPN secret from your dashboard; IPN URL is <code>{`${location.origin}/webhook/nowpayments`}</code>.</p>
               <Secrets keys={['binance_pay_api_key', 'binance_pay_secret_key', 'binance_api_key', 'binance_api_secret', 'nowpayments_api_key', 'nowpayments_ipn_secret']} />
+              <div className="mt-4 space-y-2 border-t border-ink-700 pt-3">
+                <p className="text-xs text-ink-400">Save the keys first, then test them. Each test makes one read-only call — nothing is charged.</p>
+                <KeyTest method="binance_pay" label="Binance Pay (merchant)" />
+                <KeyTest method="binance_id" label="Binance Pay ID (read-only key)" />
+                <KeyTest method="nowpayments" label="NOWPayments" />
+              </div>
             </Card>
           </>
         )}
