@@ -120,6 +120,8 @@ function durationSpans(name: string): Span[] {
     const unit = UNIT_DAYS[m[2]];
     const n = Number(m[1]);
     if (!unit || !isFinite(n)) continue;
+    // "100M Token", "10M credits" are amounts, not months
+    if (/^\s*(tokens?|credits?|chars?|characters|words|requests|calls|messages)\b/.test(s.slice(end, end + 14))) continue;
     const days = unit === 30 && n === 12 ? 365 : Math.max(1, Math.round(n * unit));
     const before = s.slice(Math.max(0, start - 12), start);
     const after = s.slice(end, end + 22);
@@ -146,12 +148,19 @@ export function parseWarranty(name: string): 'full' | 'none' | number | null {
   return null;
 }
 
+/** Arabic counted noun: سنة / سنتان / 3 سنوات / 12 شهراً. */
+function arCount(n: number, one: string, two: string, few: string, many: string): string {
+  if (n === 1) return one;
+  if (n === 2) return two;
+  return n <= 10 ? `${n} ${few}` : `${n} ${many}`;
+}
+
 /** Human duration text for a pack ("1 month", "12 months", "30 days", "Lifetime"). */
 export function durationText(days: number | null, lang: 'en' | 'ar'): string | null {
   if (days == null) return null;
   if (days === 0) return lang === 'ar' ? 'مدى الحياة' : 'Lifetime';
-  if (days % 365 === 0) { const n = days / 365; return lang === 'ar' ? `${n} ${n === 1 ? 'سنة' : 'سنوات'}` : `${n} year${n === 1 ? '' : 's'}`; }
-  if (days === 360) return lang === 'ar' ? '12 شهر' : '12 months';
-  if (days % 30 === 0) { const n = days / 30; return lang === 'ar' ? `${n} ${n === 1 ? 'شهر' : 'أشهر'}` : `${n} month${n === 1 ? '' : 's'}`; }
-  return lang === 'ar' ? `${days} يوم` : `${days} day${days === 1 ? '' : 's'}`;
+  if (days % 365 === 0) { const n = days / 365; return lang === 'ar' ? arCount(n, 'سنة', 'سنتان', 'سنوات', 'سنة') : `${n} year${n === 1 ? '' : 's'}`; }
+  if (days === 360) return lang === 'ar' ? '12 شهراً' : '12 months';
+  if (days % 30 === 0) { const n = days / 30; return lang === 'ar' ? arCount(n, 'شهر', 'شهران', 'أشهر', 'شهراً') : `${n} month${n === 1 ? '' : 's'}`; }
+  return lang === 'ar' ? arCount(days, 'يوم', 'يومان', 'أيام', 'يوماً') : `${days} day${days === 1 ? '' : 's'}`;
 }

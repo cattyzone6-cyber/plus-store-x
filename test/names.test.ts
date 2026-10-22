@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cleanProviderName, parseDurationDays, parseWarranty } from '../src/lib/names';
+import { cleanProviderName, durationText, parseDurationDays, parseWarranty } from '../src/lib/names';
 
 describe('cleanProviderName — product grouping', () => {
   const cases: [string, string][] = [
@@ -62,5 +62,22 @@ describe('duration and warranty', () => {
     expect(parseWarranty('CAPCUT PRO Personal 6-month warranty 150D')).toBe(150);
     expect(parseWarranty('SUNO PREMIER 1 MONTH (3 DAYS warranty)')).toBe(3);
     expect(parseWarranty('Gemini 18 Months')).toBeNull();
+  });
+});
+
+describe('token amounts and Arabic durations', () => {
+  it('does not read token or credit amounts as months', () => {
+    expect(parseDurationDays('API 100M Token Claude 3Day')).toBe(3);
+    expect(parseDurationDays('API 10M Token codex (1Day Warranty)')).toBeNull();
+    expect(parseDurationDays('Capcut pro 1M 1600 Ai credit FW')).toBe(30);
+  });
+  it('writes natural Arabic counts', () => {
+    expect(durationText(365, 'ar')).toBe('سنة');
+    expect(durationText(730, 'ar')).toBe('سنتان');
+    expect(durationText(90, 'ar')).toBe('3 أشهر');
+    expect(durationText(540, 'ar')).toBe('18 شهراً');
+    expect(durationText(30, 'ar')).toBe('شهر');
+    expect(durationText(9, 'ar')).toBe('9 أيام');
+    expect(durationText(365, 'en')).toBe('1 year');
   });
 });
