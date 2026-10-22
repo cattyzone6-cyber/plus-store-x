@@ -20,6 +20,10 @@ function ImportDialog({ ids, onClose, providerName }: { ids: string[]; onClose: 
   const nav = useNavigate();
   const [mode, setMode] = useState<'separate' | 'group'>(ids.length > 1 ? 'separate' : 'separate');
   const [category, setCategory] = useState('');
+  // a new category ("folder", e.g. ChatGPT) can be created right here
+  const [newCat, setNewCat] = useState({ name_en: '', name_ar: '', emoji: '' });
+  const [groupName, setGroupName] = useState({ name_en: '', name_ar: '' });
+  const creatingCat = category === '__new';
   const [target, setTarget] = useState<'new' | 'existing'>('new');
   const [search, setSearch] = useState('');
   const [productId, setProductId] = useState('');
@@ -27,9 +31,25 @@ function ImportDialog({ ids, onClose, providerName }: { ids: string[]; onClose: 
   const products = useApi<Paged<{ id: string; name_en: string }>>(mode === 'group' && target === 'existing' ? `/products${qs({ q: search, limit: 20 })}` : null);
 
   const submit = async () => {
-    const r = await run('import', () => api<{ product_ids: string[] }>('/import', {
-      body: { provider_product_ids: ids, category_id: category || null, mode, product_id: mode === 'group' && target === 'existing' ? productId || undefined : undefined, routing },
-    }), { success: 'Imported', invalidate: ['/providers', '/products', '/categories', '/dashboard'] });
+    const r = await run('import', async () => {
+      let categoryId: string | null = category && !creatingCat ? category : null;
+      if (creatingCat) {
+        const c = await api<{ category: { id: string } }>('/categories', {
+          body: { name_en: newCat.name_en.trim(), name_ar: newCat.name_ar.trim() || null, emoji: newCat.emoji.trim() || null },
+        });
+        categoryId = c.category.id;
+        setCategory(categoryId);
+      }
+      const named = mode === 'group' && target === 'new' && groupName.name_en.trim();
+      return api<{ product_ids: string[] }>('/import', {
+        body: {
+          provider_product_ids: ids, category_id: categoryId, mode, routing,
+          product_id: mode === 'group' && target === 'existing' ? productId || undefined : undefined,
+          name_en: named ? groupName.name_en.trim() : undefined,
+          name_ar: named ? groupName.name_ar.trim() || undefined : undefined,
+        },
+      });
+    }, { success: creatingCat ? 'Category created and products imported' : 'Imported', invalidate: ['/providers', '/products', '/categories', '/dashboard'] });
     if (r) {
       onClose();
       if (r.product_ids.length === 1) nav(`/products/${r.product_ids[0]}`);
@@ -38,12 +58,12 @@ function ImportDialog({ ids, onClose, providerName }: { ids: string[]; onClose: 
 
   return (
     <Dialog open onClose={onClose} title={`Import ${ids.length} product${ids.length > 1 ? 's' : ''} from ${providerName}`}
-      footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" loading={busy === 'import'} disabled={mode === 'group' && target === 'existing' && !productId} onClick={submit}>Import</Button></>}>
+      footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" loading={busy === 'import'} disabled={(mode === 'group' && target === 'existing' && !productId) || (creatingCat && !newCat.name_en.trim())} onClick={submit}>Import</Button></>}>
       <div className="space-y-3">
         <Field label="How to import">
           <Select value={mode} onChange={(e) => setMode(e.target.value as 'separate' | 'group')} options={[
-            { value: 'separate', label: 'Separate — one store product per provider product' },
-            { value: 'group', label: 'Group — one store product, these are its sources (failover)' },
+            { value: 'separate', label: 'Separate — each pack becomes its own product (e.g. ChatGPT Plus 1M, ChatGPT API…)' },
+            { value: 'group', label: 'Group — the same pack from several providers becomes ONE product (failover)' },
           ]} />
         </Field>
         {mode === 'group' && (
@@ -51,6 +71,16 @@ function ImportDialog({ ids, onClose, providerName }: { ids: string[]; onClose: 
             <Field label="Group into">
               <Select value={target} onChange={(e) => setTarget(e.target.value as 'new' | 'existing')} options={[{ value: 'new', label: 'A new store product' }, { value: 'existing', label: 'An existing store product' }]} />
             </Field>
+            {target === 'new' && (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Product name (EN)" hint="Empty = the first provider product's name">
+                  <Input value={groupName.name_en} onChange={(e) => setGroupName({ ...groupName, name_en: e.target.value })} placeholder="ChatGPT Plus 1 Month" />
+                </Field>
+                <Field label="Product name (AR)">
+                  <Input dir="rtl" value={groupName.name_ar} onChange={(e) => setGroupName({ ...groupName, name_ar: e.target.value })} placeholder="شات جي بي تي بلس شهر" />
+                </Field>
+              </div>
+            )}
             {target === 'existing' && (
               <Field label="Store product">
                 <Input placeholder="Search products…" value={search} onChange={(e) => setSearch(e.target.value)} className="mb-2" />
@@ -63,9 +93,20 @@ function ImportDialog({ ids, onClose, providerName }: { ids: string[]; onClose: 
           </>
         )}
         {!(mode === 'group' && target === 'existing') && (
-          <Field label="Category">
-            <Select value={category} onChange={(e) => setCategory(e.target.value)} options={[{ value: '', label: '— no category (hidden) —' }, ...(cats.data?.categories ?? []).map((c) => ({ value: c.id, label: c.name_en }))]} />
+          <Field label="Category (the folder customers open, e.g. ChatGPT)">
+            <Select value={category} onChange={(e) => setCategory(e.target.value)} options={[
+              { value: '', label: '— no category (hidden) —' },
+              { value: '__new', label: '+ New category…' },
+              ...(cats.data?.categories ?? []).map((c) => ({ value: c.id, label: c.name_en })),
+            ]} />
           </Field>
+        )}
+        {creatingCat && !(mode === 'group' && target === 'existing') && (
+          <div className="grid gap-3 rounded-lg border border-gold/30 p-3 sm:grid-cols-[1fr_1fr_90px]">
+            <Field label="Category name (EN)"><Input autoFocus value={newCat.name_en} onChange={(e) => setNewCat({ ...newCat, name_en: e.target.value })} placeholder="ChatGPT" /></Field>
+            <Field label="Category name (AR)"><Input dir="rtl" value={newCat.name_ar} onChange={(e) => setNewCat({ ...newCat, name_ar: e.target.value })} placeholder="شات جي بي تي" /></Field>
+            <Field label="Emoji"><Input value={newCat.emoji} onChange={(e) => setNewCat({ ...newCat, emoji: e.target.value })} placeholder="🤖" /></Field>
+          </div>
         )}
         <p className="text-xs text-ink-400">Name, description, image and warranty are copied and kept in sync until you edit them. Price = provider cost + your markup (default from Settings → Pricing).</p>
       </div>

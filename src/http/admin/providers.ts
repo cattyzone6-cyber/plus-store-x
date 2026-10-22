@@ -252,6 +252,9 @@ providerRoutes.post('/import', async (c) => {
     mode: z.enum(['separate', 'group']),
     product_id: z.string().uuid().optional(),
     routing: z.enum(['priority', 'cheapest']).optional(),
+    // optional name for a NEW grouped product (default: first provider product's name)
+    name_en: z.string().trim().min(1).max(200).optional(),
+    name_ar: z.string().trim().max(200).optional(),
   }));
   const pps = check(await db(c.env).from('provider_products').select('*').in('id', b.provider_product_ids)) as ProviderProductRow[];
   if (!pps.length) fail(404, 'Provider products not found');
@@ -273,7 +276,9 @@ providerRoutes.post('/import', async (c) => {
   } else {
     let productId = b.product_id;
     if (!productId) {
-      const product = check(await db(c.env).from('products').insert({ ...productFromPP(pps[0], b.category_id ?? null), routing: b.routing ?? 'priority' }).select('id').single()) as { id: string };
+      const base = productFromPP(pps[0], b.category_id ?? null);
+      const named = b.name_en ? { name_en: b.name_en, name_ar: b.name_ar || null, locked_fields: ['name_en'] } : {};
+      const product = check(await db(c.env).from('products').insert({ ...base, ...named, routing: b.routing ?? 'priority' }).select('id').single()) as { id: string };
       productId = product.id;
       created.push(productId);
     } else if (b.routing) {
