@@ -7,7 +7,7 @@ import { t, raw } from '../lib/i18n';
 import { fmtUsd } from '../lib/money';
 import { enqueue } from '../lib/jobs';
 import { sendMessage, tg, TelegramError, type InlineKeyboard } from '../lib/telegram';
-import { viewProducts, type ProductView } from './catalog';
+import { activeGroups, viewProducts, type ProductView } from './catalog';
 import { markBlocked } from './users';
 
 // Customer announcements. Sync and stock uploads only mark products (restocked_at);
@@ -30,13 +30,22 @@ export async function markRestocked(env: Env, productIds: string[]): Promise<voi
 /** Cron step. */
 export async function runAlerts(app: AppCtx): Promise<void> {
   const s = await getSettings(app.env);
+  // packs inside a hidden product are never announced
+  hiddenGroupFilter = await visibleGroupFilter(app.env);
   const announcedNow = await announceNew(app, s);
   await announceRestocks(app, s, announcedNow);
   await sendNotifyMe(app, s);
 }
 
+let hiddenGroupFilter: (groupId: string | null) => boolean = () => true;
+
+async function visibleGroupFilter(env: Env): Promise<(groupId: string | null) => boolean> {
+  const groups = await activeGroups(env);
+  return (groupId) => !groupId || groups.has(groupId);
+}
+
 function inStock(v: ProductView): boolean {
-  return v.product.is_active && !v.pricing.soldOut && v.pricing.unitPrice != null;
+  return v.product.is_active && hiddenGroupFilter(v.product.group_id) && !v.pricing.soldOut && v.pricing.unitPrice != null;
 }
 
 async function announceNew(app: AppCtx, s: AppSettings): Promise<Set<string>> {

@@ -77,6 +77,11 @@ export async function listProducts(env: Env, s: AppSettings, categoryId: string,
 export async function getProductView(env: Env, s: AppSettings, productId: string, user: UserRow | null): Promise<ProductView | null> {
   const row = must(await db(env).from('products').select('*').eq('id', productId).maybeSingle(), 'product') as ProductRow | null;
   if (!row) return null;
+  // a pack inside a hidden product is unavailable everywhere (deep links, checkout, reseller API)
+  if (row.group_id && row.is_active) {
+    const g = must(await db(env).from('product_groups').select('is_active').eq('id', row.group_id).maybeSingle(), 'pack group') as { is_active: boolean } | null;
+    if (g && !g.is_active) row.is_active = false;
+  }
   return (await viewProducts(env, s, [row], user))[0];
 }
 
