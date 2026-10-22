@@ -90,6 +90,17 @@ export interface AppSettings {
     default_on_failure: 'next_source' | 'refund' | 'manual';
     /** what happens when every source failed */
     all_failed_action: 'refund' | 'manual';
+    /** every markup price is at least cost × (1 + this %); manual prices below it pause the pack */
+    min_margin_percent: number;
+    /** lower prices automatically when a provider's cost drops (otherwise the old cost stays the basis) */
+    follow_drops: boolean;
+    /** a cost increase above this % pauses the pack until the owner accepts the new cost */
+    max_jump_percent: number;
+  };
+  /** catalog organisation (product groups) */
+  catalog: {
+    /** word list for product names when grouping provider items: lowercase word → how to write it */
+    name_words: Record<string, string>;
   };
   payments: {
     min_deposit: number;
@@ -258,7 +269,11 @@ export const DEFAULT_SETTINGS: AppSettings = {
     discount_levels: [],
     default_on_failure: 'next_source',
     all_failed_action: 'refund',
+    min_margin_percent: 5,
+    follow_drops: false,
+    max_jump_percent: 30,
   },
+  catalog: { name_words: {} },
   payments: {
     min_deposit: 1,
     max_deposit: 5000,

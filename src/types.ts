@@ -67,6 +67,13 @@ export interface ProviderRow {
   rate_limited_until: string | null;
   sort: number;
   created_at: string;
+  import_markup_percent: number | null;
+  import_markup_fixed: number | null;
+  import_min_margin_percent: number | null;
+  import_category_id: string | null;
+  import_description_en: string | null;
+  import_description_ar: string | null;
+  max_jump_percent: number | null;
 }
 
 export type DeliveryKind = 'instant' | 'async' | 'activation';
@@ -133,6 +140,25 @@ export interface CategoryRow {
   created_at: string;
 }
 
+/** A product as customers see it (e.g. "ChatGPT Plus"), holding several packs (`products` rows). */
+export interface ProductGroupRow {
+  id: string;
+  category_id: string | null;
+  name_en: string;
+  name_ar: string | null;
+  description_en: string | null;
+  description_ar: string | null;
+  emoji: string | null;
+  custom_emoji_id: string | null;
+  image_url: string | null;
+  button_style: ButtonStyle | null;
+  sort: number;
+  is_active: boolean;
+  is_featured: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ProductRow {
   id: string;
   category_id: string | null;
@@ -173,6 +199,13 @@ export interface ProductRow {
   announced_at: string | null;
   restocked_at: string | null;
   last_restock_alert_at: string | null;
+  /** the product (group) this pack belongs to; null = listed directly in its category */
+  group_id: string | null;
+  min_margin_percent: number | null;
+  cost_basis: number | null;
+  paused_reason: 'cost_jump' | 'below_margin' | null;
+  pending_cost: number | null;
+  pinned: boolean;
   created_at: string;
   updated_at: string;
 }

@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 
-// Small dictionary for the panel chrome. Page content falls back to English.
+// Panel chrome uses the keyed dictionary below (t('save')); page text uses tx(en, ar)
+// so every page keeps its English and Arabic side by side.
 const DICT = {
   en: {
     dashboard: 'Dashboard', providers: 'Providers', catalog: 'Catalog', categories: 'Categories', products: 'Products',
@@ -31,16 +32,19 @@ interface Ctx {
   lang: UiLang;
   setLang: (l: UiLang) => void;
   t: (k: UiKey) => string;
+  /** inline bilingual text: tx('Save', 'حفظ') */
+  tx: (en: string, ar: string) => string;
 }
 
-const I18n = createContext<Ctx>({ lang: 'en', setLang: () => {}, t: (k) => DICT.en[k] });
+const I18n = createContext<Ctx>({ lang: 'en', setLang: () => {}, t: (k) => DICT.en[k], tx: (en) => en });
 
 function initialLang(): UiLang {
   try {
     const v = localStorage.getItem('admin-lang');
     if (v === 'ar' || v === 'en') return v;
   } catch { /* ignore */ }
-  return 'en';
+  // first visit: follow the browser (Arabic browsers get the Arabic panel)
+  return typeof navigator !== 'undefined' && navigator.language?.toLowerCase().startsWith('ar') ? 'ar' : 'en';
 }
 
 export function I18nProvider({ children }: { children: ReactNode }) {
@@ -53,9 +57,18 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     setLangState(l);
     try { localStorage.setItem('admin-lang', l); } catch { /* ignore */ }
   };
-  return <I18n.Provider value={{ lang, setLang, t: (k) => DICT[lang][k] ?? DICT.en[k] }}>{children}</I18n.Provider>;
+  return (
+    <I18n.Provider value={{ lang, setLang, t: (k) => DICT[lang][k] ?? DICT.en[k], tx: (en, ar) => (lang === 'ar' ? ar || en : en) }}>
+      {children}
+    </I18n.Provider>
+  );
 }
 
 export function useT() {
   return useContext(I18n);
+}
+
+/** Shorthand for page text: const tx = useTx(); tx('Save', 'حفظ') */
+export function useTx(): (en: string, ar: string) => string {
+  return useContext(I18n).tx;
 }
