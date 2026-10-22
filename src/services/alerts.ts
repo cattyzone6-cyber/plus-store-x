@@ -19,7 +19,7 @@ import { markBlocked } from './users';
 // so Telegram limits are respected) and, when enabled, to the store channel.
 
 const MAX_PER_DIGEST = 10;
-const MAX_NOTIFY_PER_TICK = 30;
+const MAX_NOTIFY_PER_TICK = 15; // Free plan: 50 subrequests per invocation
 
 /** Called when products may have come back in stock (provider sync, stock upload). */
 export async function markRestocked(env: Env, productIds: string[]): Promise<void> {

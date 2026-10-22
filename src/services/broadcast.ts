@@ -19,8 +19,8 @@ export async function runBroadcastBatch(app: AppCtx, broadcastId: string): Promi
   if (b.status === 'queued') await db(env).from('broadcasts').update({ status: 'sending' }).eq('id', b.id);
 
   const paid = s.system.plan === 'paid';
-  // Free plan: ~50 subrequests per invocation, keep a margin for the db calls.
-  const batch = Math.max(1, Math.min(paid ? s.system.broadcast_batch_paid : s.system.broadcast_batch_free, paid ? 2000 : 40));
+  // Free plan: 50 subrequests per invocation (each batch runs in its own one), keep a margin for the db calls.
+  const batch = Math.max(1, Math.min(paid ? s.system.broadcast_batch_paid : s.system.broadcast_batch_free, paid ? 2000 : 35));
 
   let q = db(env).from('users').select('id,lang').gt('id', b.cursor_id).eq('blocked_bot', false).eq('is_banned', false).order('id').limit(batch);
   if (b.target === 'lang_en') q = q.eq('lang', 'en');

@@ -10,7 +10,8 @@ import { paymentWebhooks } from './http/webhooks';
 import { adminApi } from './http/admin';
 import { resellerApi } from './http/reseller';
 import { landing } from './http/landing';
-import { runCron } from './cron';
+import { CRON_STEPS, runCron, runCronStep } from './cron';
+import { callInternal, captureLoopback, hasLoopback, isInternalRequest } from './lib/loopback';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Background job runner (Queue consumer on the Paid plan, waitUntil otherwise)
@@ -36,6 +37,24 @@ type HonoEnv = { Bindings: Env };
 const app = new Hono<HonoEnv>();
 
 app.get('/health', (c) => c.json({ ok: true }));
+
+// Loopback-only routes (lib/loopback.ts): each runs in its own invocation with its own
+// subrequest budget. Answer at once and do the work in waitUntil.
+app.post('/__internal/:kind/:name?', async (c) => {
+  if (!(await isInternalRequest(c.env, c.req.raw))) return c.text('Not found', 404);
+  const appCtx: AppCtx = { env: c.env, waitUntil: (p) => c.executionCtx.waitUntil(p) };
+  const body = await c.req.json<Record<string, unknown>>().catch(() => ({}) as Record<string, unknown>);
+  const kind = c.req.param('kind');
+  if (kind === 'job') {
+    c.executionCtx.waitUntil(runJob(appCtx, body as unknown as Job).catch((e) => console.error('job failed', body, e)));
+  } else if (kind === 'cron') {
+    const now = typeof body.now === 'number' ? new Date(body.now) : new Date();
+    c.executionCtx.waitUntil(runCronStep(appCtx, c.req.param('name') ?? '', now));
+  } else {
+    return c.text('Not found', 404);
+  }
+  return c.json({ ok: true }, 202);
+});
 
 // Telegram updates
 app.post('/webhook/telegram', (c) => handleTelegramWebhook(c));
@@ -68,14 +87,30 @@ app.onError((err, c) => {
 });
 
 export default {
-  fetch: app.fetch,
+  fetch(req: Request, env: Env, ctx: ExecutionContext) {
+    captureLoopback(ctx);
+    return app.fetch(req, env, ctx);
+  },
 
   async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext) {
+    captureLoopback(ctx);
     const appCtx: AppCtx = { env, waitUntil: (p) => ctx.waitUntil(p) };
-    ctx.waitUntil(runCron(appCtx, new Date(controller.scheduledTime)));
+    const now = controller.scheduledTime;
+    if (!hasLoopback()) {
+      ctx.waitUntil(runCron(appCtx, new Date(now)));
+      return;
+    }
+    // fan out: one invocation per step
+    await Promise.all(Object.keys(CRON_STEPS).map((name) =>
+      callInternal(env, `/__internal/cron/${name}`, { now }).catch((e) => {
+        console.error(`cron dispatch ${name} failed, running inline`, e);
+        return runCronStep(appCtx, name, new Date(now));
+      }),
+    ));
   },
 
   async queue(batch: MessageBatch<Job>, env: Env, ctx: ExecutionContext) {
+    captureLoopback(ctx);
     const appCtx: AppCtx = { env, waitUntil: (p) => ctx.waitUntil(p) };
     for (const msg of batch.messages) {
       try {

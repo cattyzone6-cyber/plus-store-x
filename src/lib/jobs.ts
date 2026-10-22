@@ -1,11 +1,13 @@
 import type { AppCtx } from '../env';
 import { getSettings } from './settings';
+import { callInternal } from './loopback';
 
 /**
  * Background work. On the Paid plan (settings.system.plan = 'paid' AND the JOBS queue
  * binding exists) jobs go to the Cloudflare Queue (retries, no time pressure).
- * Otherwise they run with ctx.waitUntil() right after the response, and anything
- * unfinished is picked up again by the cron sweeps (orders stuck in 'paid' etc.).
+ * Otherwise each job runs in its own loopback invocation (own subrequest budget), falling
+ * back to ctx.waitUntil() in this invocation; anything unfinished is picked up again by
+ * the cron sweeps (orders stuck in 'paid' etc.).
  */
 export type Job =
   | { type: 'fulfill_order'; orderId: number }
@@ -34,6 +36,8 @@ export async function enqueue(app: AppCtx, job: Job): Promise<void> {
     return;
   }
   app.waitUntil(
-    runJob(app, job).catch((err) => console.error('job failed', job, err)),
+    callInternal(app.env, '/__internal/job', job)
+      .then((sent) => (sent ? undefined : runJob(app, job)))
+      .catch((err) => console.error('job failed', job, err)),
   );
 }
