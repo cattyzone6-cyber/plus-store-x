@@ -1,5 +1,5 @@
 import type { BotContext } from './context';
-import { answer, plain, setState, tr } from './context';
+import { answer, getAdmin, plain, setState, tr } from './context';
 import { showForceJoin, showHome, showLanguagePicker } from './handlers/home';
 import { onToggleAlerts, onToggleNotifyMe, showCategory, showPriceList, showProduct, showShop } from './handlers/shop';
 import {
@@ -93,7 +93,7 @@ export async function onCallback(ctx: BotContext, data: string, botUsername: str
       if (a === 'f') return askReplaceDescription(ctx, Number(b), 'refund');
       return a ? showReplaceOrder(ctx, Number(a)) : showReplaceList(ctx);
     case 'lang':
-      if (a === 'en' || a === 'ar') return onSetLanguage(ctx, a as Lang, pendingLink ? () => openStartPayload(ctx, pendingLink) : undefined);
+      if (a === 'en' || a === 'ar') return onSetLanguage(ctx, a as Lang, () => afterLanguage(ctx, pendingLink));
       return showLanguagePicker(ctx);
     case 'fj': {
       const missing = await checkForceJoin(ctx, true);
@@ -161,6 +161,22 @@ async function onStart(ctx: BotContext, payload: string): Promise<void> {
 /** True for payloads that open a screen (worth remembering across the language / join gates). */
 export function isDeepLink(payload: string): boolean {
   return payload === 'shop' || (/^[cp]_/.test(payload) && UUID.test(payload.slice(2)));
+}
+
+/**
+ * After the first-start language pick: the force-join gate still applies (the "lang:"
+ * callback itself bypasses it), so check it before opening home or a remembered deep link.
+ */
+async function afterLanguage(ctx: BotContext, pendingLink: string): Promise<void> {
+  const { s } = ctx.st;
+  if (s.force_join.enabled && !(await getAdmin(ctx))) {
+    const missing = await checkForceJoin(ctx);
+    if (missing.length) {
+      if (pendingLink) await setState(ctx, { kind: 'pending_link', data: { payload: pendingLink } });
+      return showForceJoin(ctx, missing);
+    }
+  }
+  return pendingLink ? openStartPayload(ctx, pendingLink) : showHome(ctx);
 }
 
 /** Deep links from the landing page, channel posts and alerts. */
