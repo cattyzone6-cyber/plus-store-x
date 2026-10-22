@@ -111,6 +111,10 @@ Your store is now live at `https://<project-name>.<your-subdomain>.workers.dev`.
 3. In the panel: **System → Public base URL** = `https://yourstore.com`, then press **Set webhook** again.
 4. Update the webhook URLs at Binance Pay and NOWPayments to the new domain.
 
+## 6b. Daily backups (recommended)
+
+Add one more repository secret, `BACKUP_PASSPHRASE` (a long random passphrase kept in a password manager), next to the three Supabase secrets above. The **Database backup** action then saves an encrypted copy of the whole database every day for 30 days. Details and the restore steps: [BACKUPS.md](BACKUPS.md).
+
 ## 7. Cloudflare Paid plan (later)
 
 The free plan works. The Paid plan ($5/month) adds background queues and more processing time, which helps big broadcasts and busy hours.
