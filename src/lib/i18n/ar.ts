@@ -341,6 +341,7 @@ export const ar: Partial<Record<keyof typeof en, string>> & Record<string, strin
   btn_notify_on: 'سننبهك — اضغط للإلغاء',
   notify_me_added: 'تم! سنرسل لك رسالة فور توفر المنتج.',
   notify_me_removed: 'تم إلغاء التنبيه.',
+  notify_me_unavailable: 'المنتج متوفر الآن، أو أنك تتابع عدداً كبيراً من المنتجات.',
   btn_alerts_on: 'تنبيهات المتجر: مفعّلة',
   btn_alerts_off: 'تنبيهات المتجر: متوقفة',
   alerts_turned_on: 'تم تفعيل التنبيهات — ستصلك المنتجات الجديدة وإعادة التوفر.',

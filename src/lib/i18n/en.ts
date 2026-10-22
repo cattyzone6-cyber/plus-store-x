@@ -340,6 +340,7 @@ export const en = {
   btn_notify_on: "You'll be notified — tap to cancel",
   notify_me_added: "Done! We'll message you as soon as it's back in stock.",
   notify_me_removed: 'Alert removed.',
+  notify_me_unavailable: 'This product is available now, or you already follow too many products.',
   btn_alerts_on: 'Store alerts: ON',
   btn_alerts_off: 'Store alerts: OFF',
   alerts_turned_on: "Alerts on — you'll hear about new products and restocks.",

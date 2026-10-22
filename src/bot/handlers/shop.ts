@@ -227,8 +227,8 @@ export async function showPriceList(ctx: BotContext): Promise<void> {
 
 /** "Notify me when available" on a sold-out product (toggles). */
 export async function onToggleNotifyMe(ctx: BotContext, productId: string): Promise<void> {
-  const on = await toggleStockAlert(ctx.st.env, ctx.st.user.id, productId);
-  await answer(ctx, plain(tr(ctx, on ? 'notify_me_added' : 'notify_me_removed')), on);
+  const on = await toggleStockAlert(ctx.st.env, ctx.st.s, ctx.st.user.id, productId);
+  await answer(ctx, plain(tr(ctx, on === null ? 'notify_me_unavailable' : on ? 'notify_me_added' : 'notify_me_removed')), on !== false);
   await showProduct(ctx, productId);
 }
 
