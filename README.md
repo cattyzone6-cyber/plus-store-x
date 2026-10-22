@@ -155,4 +155,5 @@ npm run dev:admin
 
 - [docs/SETUP-OWNER.md](docs/SETUP-OWNER.md) — for a store owner: bot, Supabase, GitHub, Cloudflare, first login.
 - [docs/CLIENT-BRANCHES.md](docs/CLIENT-BRANCHES.md) — for the coder: one branch per client, and how updates reach each client automatically.
+- [docs/BACKUPS.md](docs/BACKUPS.md) — daily encrypted database backups (GitHub Action) and how to restore.
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — modules, data model, order lifecycle, security, and how to add a provider or payment gateway.
