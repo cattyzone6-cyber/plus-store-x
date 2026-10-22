@@ -4,6 +4,7 @@ import {
 } from 'react';
 import { ChevronLeft, ChevronRight, Loader2, Lock, Unlock, Upload, X } from 'lucide-react';
 import { uploadImage } from '../lib/api';
+import { useTx } from '../lib/i18n';
 
 export function cx(...c: (string | false | null | undefined)[]): string {
   return c.filter(Boolean).join(' ');
@@ -31,7 +32,7 @@ export function Button({
       disabled={rest.disabled || loading}
       className={cx(
         'inline-flex items-center justify-center gap-1.5 rounded-lg transition disabled:cursor-not-allowed disabled:opacity-50',
-        size === 'sm' ? 'px-2.5 py-1 text-xs' : 'px-3.5 py-2 text-sm',
+        size === 'sm' ? 'min-h-9 px-2.5 py-1 text-xs sm:min-h-0' : 'min-h-10 px-3.5 py-2 text-sm sm:min-h-0',
         VARIANTS[variant],
         className,
       )}
@@ -101,17 +102,18 @@ export function Switch({ checked, onChange, label, disabled }: { checked: boolea
 }
 
 export function Field({ label, hint, children, className, locked, onUnlock }: { label: ReactNode; hint?: ReactNode; children: ReactNode; className?: string; locked?: boolean; onUnlock?: () => void }) {
+  const tx = useTx();
   return (
     <div className={className}>
       <div className="flex items-center justify-between">
         <span className="label">{label}</span>
         {locked !== undefined && (
           locked ? (
-            <button type="button" onClick={onUnlock} title="Edited by admin — sync will not overwrite. Click to reset to provider on next sync." className="mb-1 inline-flex items-center gap-1 text-[10px] uppercase text-gold">
-              <Lock className="h-3 w-3" /> locked
+            <button type="button" onClick={onUnlock} title={tx('Edited by admin — sync will not overwrite it. Click to take the provider value again on the next sync.', 'عدّلته الإدارة — المزامنة لن تستبدله. اضغط لأخذ قيمة المزوّد في المزامنة القادمة.')} className="mb-1 inline-flex items-center gap-1 text-[10px] uppercase text-gold">
+              <Lock className="h-3 w-3" /> {tx('locked', 'مقفل')}
             </button>
           ) : (
-            <span title="Synced from provider" className="mb-1 inline-flex items-center gap-1 text-[10px] uppercase text-ink-400"><Unlock className="h-3 w-3" /> synced</span>
+            <span title={tx('Synced from provider', 'يُزامن من المزوّد')} className="mb-1 inline-flex items-center gap-1 text-[10px] uppercase text-ink-400"><Unlock className="h-3 w-3" /> {tx('synced', 'متزامن')}</span>
           )
         )}
       </div>
@@ -172,7 +174,8 @@ export function Loading() {
 }
 
 export function Empty({ children }: { children?: ReactNode }) {
-  return <div className="py-12 text-center text-sm text-ink-400">{children ?? 'Nothing here yet'}</div>;
+  const tx = useTx();
+  return <div className="py-12 text-center text-sm text-ink-400">{children ?? tx('Nothing here yet', 'لا يوجد شيء بعد')}</div>;
 }
 
 export function ErrorBox({ error }: { error: unknown }) {
@@ -183,11 +186,20 @@ export function ErrorBox({ error }: { error: unknown }) {
 export function PageHeader({ title, sub, actions }: { title: ReactNode; sub?: ReactNode; actions?: ReactNode }) {
   return (
     <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-      <div>
+      <div className="min-w-0">
         <h1 className="text-xl font-semibold">{title}</h1>
         {sub && <p className="mt-0.5 text-sm text-ink-400">{sub}</p>}
       </div>
       <div className="flex flex-wrap items-center gap-2">{actions}</div>
+    </div>
+  );
+}
+
+/** Phones only: the page's main actions stay reachable at the bottom of the screen (put it last on the page). */
+export function ActionBar({ children }: { children: ReactNode }) {
+  return (
+    <div className="sticky bottom-0 z-20 -mx-4 -mb-4 mt-4 flex flex-wrap gap-2 border-t border-ink-700 bg-ink-900/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:hidden [&>*]:flex-1">
+      {children}
     </div>
   );
 }
@@ -198,8 +210,9 @@ export function PageHeader({ title, sub, actions }: { title: ReactNode; sub?: Re
 
 export function Table({ head, children, empty }: { head: ReactNode[]; children: ReactNode; empty?: boolean }) {
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[640px] border-collapse">
+    // phones: the table scrolls sideways inside the card and the first column stays put
+    <div className="overflow-x-auto overscroll-x-contain">
+      <table className="w-full min-w-[640px] border-collapse text-start max-sm:[&_td:first-child]:sticky max-sm:[&_td:first-child]:start-0 max-sm:[&_td:first-child]:z-[1] max-sm:[&_td:first-child]:bg-ink-850 max-sm:[&_th:first-child]:sticky max-sm:[&_th:first-child]:start-0 max-sm:[&_th:first-child]:z-[1] max-sm:[&_th:first-child]:bg-ink-850">
         <thead className="border-b border-ink-700 bg-ink-900/60">
           <tr>{head.map((h, i) => <th key={i} className="th">{h}</th>)}</tr>
         </thead>
@@ -211,14 +224,16 @@ export function Table({ head, children, empty }: { head: ReactNode[]; children: 
 }
 
 export function Pagination({ page, limit, total, onPage }: { page: number; limit: number; total: number; onPage: (p: number) => void }) {
+  const tx = useTx();
   const pages = Math.max(1, Math.ceil(total / limit));
-  if (pages <= 1) return <div className="px-3 py-2 text-xs text-ink-400">{total} items</div>;
+  const count = <span>{total} {tx(total === 1 ? 'item' : 'items', 'عنصر')}</span>;
+  if (pages <= 1) return <div className="px-3 py-2 text-xs text-ink-400">{count}</div>;
   return (
     <div className="flex items-center justify-between px-3 py-2 text-xs text-ink-400">
-      <span>{total} items</span>
+      {count}
       <div className="flex items-center gap-2">
         <Button size="sm" variant="ghost" disabled={page <= 1} onClick={() => onPage(page - 1)}><ChevronLeft className="h-4 w-4 rtl:rotate-180" /></Button>
-        <span>{page} / {pages}</span>
+        <span dir="ltr">{page} / {pages}</span>
         <Button size="sm" variant="ghost" disabled={page >= pages} onClick={() => onPage(page + 1)}><ChevronRight className="h-4 w-4 rtl:rotate-180" /></Button>
       </div>
     </div>
@@ -251,6 +266,7 @@ export function Tabs<T extends string>({ tabs, value, onChange }: { tabs: { valu
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function Dialog({ open, onClose, title, children, footer, wide }: { open: boolean; onClose: () => void; title: ReactNode; children: ReactNode; footer?: ReactNode; wide?: boolean }) {
+  const tx = useTx();
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -260,13 +276,13 @@ export function Dialog({ open, onClose, title, children, footer, wide }: { open:
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-0 sm:items-center sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className={cx('card flex max-h-[92vh] w-full flex-col rounded-b-none sm:rounded-xl', wide ? 'sm:max-w-4xl' : 'sm:max-w-lg')}>
-        <header className="flex items-center justify-between border-b border-ink-700 px-4 py-3">
-          <h3 className="font-semibold">{title}</h3>
-          <button onClick={onClose} className="rounded p-1 text-ink-400 hover:bg-ink-800 hover:text-white"><X className="h-4 w-4" /></button>
+      <div role="dialog" aria-modal="true" className={cx('card flex max-h-[94dvh] w-full flex-col rounded-b-none sm:max-h-[92vh] sm:rounded-xl', wide ? 'sm:max-w-4xl' : 'sm:max-w-lg')}>
+        <header className="flex items-center justify-between gap-3 border-b border-ink-700 px-4 py-3">
+          <h3 className="min-w-0 truncate font-semibold">{title}</h3>
+          <button onClick={onClose} aria-label={tx('Close', 'إغلاق')} className="grid h-10 w-10 shrink-0 place-items-center rounded-lg text-ink-400 hover:bg-ink-800 hover:text-white sm:h-8 sm:w-8"><X className="h-4 w-4" /></button>
         </header>
-        <div className="flex-1 overflow-y-auto p-4">{children}</div>
-        {footer && <footer className="flex flex-wrap justify-end gap-2 border-t border-ink-700 px-4 py-3">{footer}</footer>}
+        <div className="flex-1 overflow-y-auto overscroll-contain p-4">{children}</div>
+        {footer && <footer className="flex flex-wrap justify-end gap-2 border-t border-ink-700 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] [&>*]:flex-1 sm:[&>*]:flex-none">{footer}</footer>}
       </div>
     </div>
   );
@@ -290,7 +306,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastCtx.Provider value={push}>
       {children}
-      <div className="pointer-events-none fixed bottom-4 end-4 z-[60] flex flex-col gap-2">
+      <div className="pointer-events-none fixed inset-x-4 bottom-4 z-[60] flex flex-col items-center gap-2 sm:inset-x-auto sm:end-4 sm:items-end">
         {items.map((i) => (
           <div key={i.id} className={cx('pointer-events-auto max-w-sm rounded-lg border px-4 py-2.5 text-sm shadow-xl', i.tone === 'ok' ? 'border-emerald-500/30 bg-ink-850 text-emerald-300' : 'border-red-500/30 bg-ink-850 text-red-300')}>
             {i.text}
@@ -310,13 +326,14 @@ export function useToast() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function ImageInput({ value, onChange, placeholder }: { value: string | null | undefined; onChange: (url: string | null) => void; placeholder?: string }) {
+  const tx = useTx();
   const [busy, setBusy] = useState(false);
   const toast = useToast();
   const ref = useRef<HTMLInputElement>(null);
   return (
     <div className="flex items-center gap-2">
       {value ? <img src={value} alt="" className="h-9 w-9 shrink-0 rounded border border-ink-700 object-cover" /> : null}
-      <Input value={value ?? ''} placeholder={placeholder ?? 'https://… or upload'} onChange={(e) => onChange(e.target.value || null)} />
+      <Input value={value ?? ''} placeholder={placeholder ?? tx('https://… or upload', 'https://… أو ارفع صورة')} onChange={(e) => onChange(e.target.value || null)} />
       <input
         ref={ref}
         type="file"
@@ -336,18 +353,19 @@ export function ImageInput({ value, onChange, placeholder }: { value: string | n
           }
         }}
       />
-      <Button type="button" onClick={() => ref.current?.click()} loading={busy} title="Upload"><Upload className="h-4 w-4" /></Button>
+      <Button type="button" onClick={() => ref.current?.click()} loading={busy} title={tx('Upload', 'رفع')}><Upload className="h-4 w-4" /></Button>
     </div>
   );
 }
 
 export function StyleSelect({ value, onChange, allowInherit }: { value: string | null | undefined; onChange: (v: string | null) => void; allowInherit?: boolean }) {
+  const tx = useTx();
   const opts = [
-    ...(allowInherit ? [{ value: '', label: 'Inherit' }] : []),
-    { value: 'default', label: 'Default (gray)' },
-    { value: 'primary', label: 'Blue' },
-    { value: 'success', label: 'Green' },
-    { value: 'danger', label: 'Red' },
+    ...(allowInherit ? [{ value: '', label: tx('Inherit', 'افتراضي القسم') }] : []),
+    { value: 'default', label: tx('Default (gray)', 'عادي (رمادي)') },
+    { value: 'primary', label: tx('Blue', 'أزرق') },
+    { value: 'success', label: tx('Green', 'أخضر') },
+    { value: 'danger', label: tx('Red', 'أحمر') },
   ];
   return <Select value={value ?? ''} onChange={(e) => onChange(e.target.value || null)} options={opts} />;
 }

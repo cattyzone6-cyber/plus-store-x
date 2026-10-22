@@ -1,6 +1,7 @@
 import { lazy, Suspense, type ReactNode } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './lib/auth';
+import { useTx } from './lib/i18n';
 import { Layout } from './components/Layout';
 import { Loading } from './components/ui';
 import { Login } from './pages/Login';
@@ -27,7 +28,8 @@ const System = lazy(() => import('./pages/System'));
 
 function OwnerOnly({ children }: { children: ReactNode }) {
   const { admin } = useAuth();
-  if (admin?.role !== 'owner') return <div className="card p-6 text-sm text-ink-400">Only the store owner can open this page.</div>;
+  const tx = useTx();
+  if (admin?.role !== 'owner') return <div className="card p-6 text-sm text-ink-400">{tx('Only the store owner can open this page.', 'هذه الصفحة لمالك المتجر فقط.')}</div>;
   return <>{children}</>;
 }
 
