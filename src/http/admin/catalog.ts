@@ -277,9 +277,22 @@ catalogRoutes.post('/products/reorder', ownerOnly, async (c) => {
 catalogRoutes.post('/products/bulk', ownerOnly, async (c) => {
   const b = await body(c, z.object({
     ids: z.array(z.string().uuid()).min(1).max(1000),
-    action: z.enum(['move', 'show', 'hide', 'feature', 'unfeature']),
+    action: z.enum(['move', 'show', 'hide', 'feature', 'unfeature', 'delete']),
     category_id: z.string().uuid().nullable().optional(),
   }));
+  if (b.action === 'delete') {
+    // products with orders keep their history, products with unsold stock keep their items:
+    // both are skipped (hide them instead)
+    const [ordered, stocked] = await Promise.all([
+      db(c.env).from('orders').select('product_id').in('product_id', b.ids),
+      db(c.env).from('stock_items').select('product_id').in('product_id', b.ids).eq('status', 'available'),
+    ]);
+    const keep = new Set([...(check(ordered) as { product_id: string }[]), ...(check(stocked) as { product_id: string }[])].map((r) => r.product_id));
+    const ids = b.ids.filter((id) => !keep.has(id));
+    const rows = ids.length ? (check(await db(c.env).from('products').delete().in('id', ids).select('id')) as { id: string }[]) : [];
+    await log(c, 'product.bulk_delete', 'products', `${rows.length}`, { ids: rows.map((r) => r.id), skipped: [...keep] });
+    return c.json({ ok: true, deleted: rows.length, skipped: b.ids.length - rows.length });
+  }
   const patch =
     b.action === 'move' ? { category_id: b.category_id ?? null }
     : b.action === 'show' ? { is_active: true }

@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { FolderInput, Plus, X } from 'lucide-react';
+import { FolderInput, Plus, Trash2, X } from 'lucide-react';
 import { api, qs } from '../lib/api';
 import { useAction, useApi, useIsOwner, type Paged } from '../lib/hooks';
 import { usd, num } from '../lib/format';
-import { Badge, Button, Card, Dialog, ErrorBox, Field, Input, Loading, PageHeader, Pagination, Select, Table } from '../components/ui';
+import { Badge, Button, Card, Dialog, ErrorBox, Field, Input, Loading, PageHeader, Pagination, Select, Table, useToast } from '../components/ui';
 
 interface ProductListItem {
   id: string; name_en: string; name_ar: string | null; emoji: string | null; category_id: string | null; is_active: boolean; is_featured: boolean;
@@ -69,6 +69,17 @@ function BulkBar({ ids, categories, onDone }: { ids: string[]; categories: { id:
     }, { success: `Moved ${ids.length} product${ids.length > 1 ? 's' : ''}`, invalidate: inv });
     if (r) onDone();
   };
+  const toast = useToast();
+  const remove = async () => {
+    if (!confirm(`Permanently delete ${ids.length} product${ids.length > 1 ? 's' : ''}? This cannot be undone.
+
+Products with orders or unsold stock are kept (hide those instead).`)) return;
+    const r = await run('delete', () => api<{ deleted: number; skipped: number }>('/products/bulk', { body: { ids, action: 'delete' } }), { invalidate: inv });
+    if (r) {
+      toast(r.skipped ? `Deleted ${r.deleted}, kept ${r.skipped} with orders or stock` : `Deleted ${r.deleted}`);
+      onDone();
+    }
+  };
   const act = async (action: 'show' | 'hide' | 'feature' | 'unfeature') => {
     const r = await run(action, () => api('/products/bulk', { body: { ids, action } }), { success: 'Updated', invalidate: inv });
     if (r) onDone();
@@ -92,6 +103,7 @@ function BulkBar({ ids, categories, onDone }: { ids: string[]; categories: { id:
         <Button size="sm" loading={busy === 'hide'} onClick={() => act('hide')}>Hide</Button>
         <Button size="sm" loading={busy === 'feature'} onClick={() => act('feature')}>Feature</Button>
         <Button size="sm" loading={busy === 'unfeature'} onClick={() => act('unfeature')}>Unfeature</Button>
+        <Button size="sm" variant="danger" loading={busy === 'delete'} onClick={remove}><Trash2 className="h-4 w-4" /> Delete</Button>
         <Button size="sm" variant="ghost" onClick={onDone} className="ms-auto"><X className="h-4 w-4" /> Clear</Button>
       </div>
       {creating && (
