@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import type { AdminRow, EmojiRow } from '../../types';
+import type { AdminRow, DepositMethod, EmojiRow } from '../../types';
 import { db } from '../../lib/db';
 import { mask } from '../../lib/crypto';
 import { DICTS } from '../../lib/i18n';
@@ -10,6 +10,7 @@ import {
   type SecretKey, type SettingsKey,
 } from '../../lib/settings';
 import { tg } from '../../lib/telegram';
+import { testGatewayKeys } from '../../payments/test';
 import { setupBotCommands } from '../../bot/commands';
 import { clearAuthCache } from './auth';
 import { streamTelegramFile } from './orders';
@@ -85,6 +86,17 @@ configRoutes.get('/secrets', async (c) => {
     return { key, set: !!v, masked: mask(v) };
   }));
   return c.json({ ok: true, items });
+});
+
+/** Settings → Payments "Test keys": one read-only call to the gateway with the saved keys. */
+configRoutes.post('/payments/test/:method', async (c) => {
+  requireOwner(c);
+  const method = c.req.param('method');
+  if (!['binance_pay', 'binance_id', 'nowpayments'].includes(method)) fail(404, 'Unknown payment method');
+  const s = await getSettings(c.env, true);
+  const result = await testGatewayKeys(c.env, s, method as DepositMethod);
+  await log(c, 'payments.test', 'payment', method, { ok: result.ok });
+  return c.json({ ok: true, result });
 });
 
 configRoutes.put('/secrets', async (c) => {

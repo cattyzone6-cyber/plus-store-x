@@ -53,6 +53,9 @@ async function call<T>(env: Env, path: string, payload: unknown): Promise<T> {
   return res.data;
 }
 
+/** Signed request to the Binance Pay merchant API (also used by the admin "Test keys" button). */
+export const binancePayRequest = call;
+
 interface CreateOrderData {
   prepayId: string;
   expireTime?: number;
