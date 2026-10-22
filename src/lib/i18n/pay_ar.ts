@@ -27,6 +27,16 @@ export const payAr: Record<string, string> = {
     '{instructions}' +
     'ثم اضغط <b>لقد دفعت</b>. إذا لم يتم العثور عليها، أرسل لنا <b>رقم الطلب (Order ID)</b> للتحويل من بينانس.\n\n' +
     '{e:clock} ينتهي خلال {minutes} دقيقة',
+  pay_binance_id_manual_instructions:
+    '{e:binance} <b>تحويل عبر Binance Pay ID</b>\n\n' +
+    '{e:deposit} الرصيد المضاف: <b>{credit}</b>\n{fee_line}' +
+    '{e:total} أرسل بالضبط: <b><code>{amount}</code> USDT</b>\n' +
+    '{e:key} Pay ID: <code>{pay_id}</code>{receiver_line}\n' +
+    '{e:link} الملاحظة / المرجع: <code>{reference}</code>\n\n' +
+    '{e:warning} أرسل <b>المبلغ بالضبط</b> وضع المرجع في الملاحظة.\n' +
+    '{instructions}' +
+    'ثم اضغط <b>إرسال إثبات الدفع</b> وأرسل صورة التحويل أو <b>رقم الطلب (Order ID)</b> من بينانس. سنضيف الرصيد فور التأكد.\n\n' +
+    '{e:clock} أرسل الإثبات خلال {minutes} دقيقة',
   pay_receiver_line: '\n{e:profile} المستلم: <b>{name}</b>',
 
   pay_nowpayments_instructions:

@@ -28,6 +28,16 @@ export const payEn: Record<string, string> = {
     '{instructions}' +
     'Then tap <b>I\'ve paid</b>. If it is not found, send us the Binance <b>Order ID</b> of the transfer.\n\n' +
     '{e:clock} Expires in {minutes} min',
+  pay_binance_id_manual_instructions:
+    '{e:binance} <b>Binance Pay ID transfer</b>\n\n' +
+    '{e:deposit} Wallet credit: <b>{credit}</b>\n{fee_line}' +
+    '{e:total} Send exactly: <b><code>{amount}</code> USDT</b>\n' +
+    '{e:key} Pay ID: <code>{pay_id}</code>{receiver_line}\n' +
+    '{e:link} Note / reference: <code>{reference}</code>\n\n' +
+    '{e:warning} Send the <b>exact amount</b> and put the reference in the note.\n' +
+    '{instructions}' +
+    'Then tap <b>Send payment proof</b> and send a screenshot or the Binance <b>Order ID</b>. We credit your wallet as soon as we confirm it.\n\n' +
+    '{e:clock} Send the proof within {minutes} min',
   pay_receiver_line: '\n{e:profile} Receiver: <b>{name}</b>',
 
   pay_nowpayments_instructions:

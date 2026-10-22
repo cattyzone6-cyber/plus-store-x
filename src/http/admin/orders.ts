@@ -145,7 +145,8 @@ orderRoutes.get('/deposits', async (c) => {
   const user = c.req.query('user_id');
   if (user) q = q.eq('user_id', Number(user));
   if (c.req.query('review') === 'true') {
-    q = q.in('status', ['pending', 'confirming']).eq('method', 'shamcash').or('proof_file_id.not.is.null,proof_text.not.is.null');
+    // any deposit a customer sent proof for (ShamCash, Binance Pay ID in manual mode, or an auto match that failed)
+    q = q.in('status', ['pending', 'confirming']).or('proof_file_id.not.is.null,proof_text.not.is.null');
   }
   const search = c.req.query('q')?.trim();
   if (search) {
