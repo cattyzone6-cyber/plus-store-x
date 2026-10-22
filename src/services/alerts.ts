@@ -133,11 +133,20 @@ async function publish(app: AppCtx, s: AppSettings, kind: 'new' | 'restock', vie
 async function sendNotifyMe(app: AppCtx, s: AppSettings): Promise<void> {
   if (!s.alerts.notify_me) return;
   const { env } = app;
-  const pending = must(await db(env).from('stock_alerts').select('product_id').order('created_at').limit(200), 'stock alerts') as { product_id: string }[];
-  const ids = [...new Set(pending.map((p) => p.product_id))].slice(0, 10);
-  if (!ids.length) return;
-  const products = must(await db(env).from('products').select('*').in('id', ids), 'alert products') as ProductRow[];
-  const ready = (await viewProducts(env, s, products, null)).filter(inStock);
+  // every product that has at least one pending request (one row per product, not per request),
+  // so requests for products that stay sold out can never starve the ones that are back
+  const withAlerts = must(
+    await db(env).from('products').select('*, stock_alerts!inner(user_id)').limit(1, { referencedTable: 'stock_alerts' }).limit(500),
+    'alert products',
+  ) as (ProductRow & { stock_alerts?: unknown })[];
+  if (!withAlerts.length) return;
+  const products = withAlerts.map(({ stock_alerts: _sa, ...p }) => p as ProductRow);
+
+  // requests for products that were switched off are dropped
+  const inactive = products.filter((p) => !p.is_active).map((p) => p.id);
+  if (inactive.length) await db(env).from('stock_alerts').delete().in('product_id', inactive);
+
+  const ready = (await viewProducts(env, s, products.filter((p) => p.is_active), null)).filter(inStock);
   if (!ready.length) return;
   const em = await getEmojiResolver(env, s);
 
@@ -177,12 +186,23 @@ export async function hasStockAlert(env: Env, userId: number, productId: string)
   return (count ?? 0) > 0;
 }
 
-/** Toggle "notify me" for a product. Returns the new state. */
-export async function toggleStockAlert(env: Env, userId: number, productId: string): Promise<boolean> {
+const MAX_ALERTS_PER_USER = 20;
+
+/**
+ * Toggle "notify me" for a product. Returns the new state, or null when the request is not
+ * allowed (product missing / inactive / in stock, or the customer already has too many).
+ */
+export async function toggleStockAlert(env: Env, s: AppSettings, userId: number, productId: string): Promise<boolean | null> {
   if (await hasStockAlert(env, userId, productId)) {
     await db(env).from('stock_alerts').delete().eq('user_id', userId).eq('product_id', productId);
     return false;
   }
+  const product = must(await db(env).from('products').select('*').eq('id', productId).maybeSingle(), 'alert product') as ProductRow | null;
+  if (!product || !product.is_active) return null;
+  const [view] = await viewProducts(env, s, [product], null);
+  if (!view.pricing.soldOut) return null;
+  const { count } = await db(env).from('stock_alerts').select('product_id', { count: 'exact', head: true }).eq('user_id', userId);
+  if ((count ?? 0) >= MAX_ALERTS_PER_USER) return null;
   must(await db(env).from('stock_alerts').upsert({ user_id: userId, product_id: productId }), 'stock alert add');
   return true;
 }
