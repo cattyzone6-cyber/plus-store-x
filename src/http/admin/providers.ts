@@ -194,6 +194,8 @@ providerRoutes.get('/providers/:id/products', async (c) => {
   let list = rows.map((r) => ({ ...r, links: links.get(r.id) ?? [] }));
   if (filter === 'linked') list = list.filter((r) => r.links.length);
   if (filter === 'unlinked') list = list.filter((r) => !r.links.length && !r.is_removed);
+  // ?all=1: the whole catalog in one list (the admin page selects across all of it)
+  if (c.req.query('all') === '1') return c.json({ ok: true, total: list.length, page: 1, limit: list.length, items: list });
   return c.json({ ok: true, total: list.length, page, limit, items: list.slice(from, from + limit) });
 });
 
@@ -255,7 +257,15 @@ providerRoutes.post('/import', async (c) => {
     // optional name for a NEW grouped product (default: first provider product's name)
     name_en: z.string().trim().min(1).max(200).optional(),
     name_ar: z.string().trim().max(200).optional(),
+    // separate mode, from the review step: per product category and name
+    items: z.array(z.object({
+      id: z.string().uuid(),
+      category_id: z.string().uuid().nullable().optional(),
+      name_en: z.string().trim().min(1).max(200).optional(),
+      name_ar: z.string().trim().max(200).optional(),
+    })).max(1000).optional(),
   }));
+  const perItem = new Map((b.items ?? []).map((i) => [i.id, i]));
   const pps = check(await db(c.env).from('provider_products').select('*').in('id', b.provider_product_ids)) as ProviderProductRow[];
   if (!pps.length) fail(404, 'Provider products not found');
   // keep the order the admin selected
@@ -275,7 +285,20 @@ providerRoutes.post('/import', async (c) => {
 
     // bulk inserts (Workers Free allows ~50 outgoing calls per request): ids are generated
     // here so every source row can point at its product without a read-back
-    const products = fresh.map((pp) => ({ id: crypto.randomUUID(), ...productFromPP(pp, b.category_id ?? null) }));
+    const products = fresh.map((pp) => {
+      const o = perItem.get(pp.id);
+      const base = productFromPP(pp, o && o.category_id !== undefined ? o.category_id : (b.category_id ?? null));
+      // a name typed in the review is kept: sync will not overwrite it.
+      // Every row carries the same keys (a bulk insert sends missing keys as NULL).
+      const renamed = !!o?.name_en && o.name_en !== pp.name;
+      return {
+        id: crypto.randomUUID(),
+        ...base,
+        name_en: renamed ? o!.name_en! : base.name_en,
+        name_ar: o?.name_ar || null,
+        locked_fields: renamed ? ['name_en'] : [],
+      };
+    });
     const sources = products.map((p, i) => ({ product_id: p.id, kind: 'provider', provider_product_id: fresh[i].id, priority: 0 }));
     try {
       for (let i = 0; i < products.length; i += 100) {
