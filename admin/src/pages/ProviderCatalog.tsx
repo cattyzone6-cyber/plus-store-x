@@ -4,7 +4,7 @@ import { ArrowLeft, Download, Eye, RefreshCw } from 'lucide-react';
 import { api, qs } from '../lib/api';
 import { useAction, useApi, type Paged } from '../lib/hooks';
 import { usd, ago } from '../lib/format';
-import { Badge, Button, Card, Dialog, ErrorBox, Field, Input, Loading, PageHeader, Pagination, Select, Table, Tabs } from '../components/ui';
+import { Badge, Button, Card, Dialog, ErrorBox, Field, Input, Loading, PageHeader, Pagination, Select, Table, Tabs, useToast } from '../components/ui';
 
 export interface PP {
   id: string; provider_id: string; external_id: string; name: string; description: string | null; image_url: string | null;
@@ -17,6 +17,7 @@ export interface PP {
 function ImportDialog({ ids, onClose, providerName }: { ids: string[]; onClose: () => void; providerName: string }) {
   const cats = useApi<{ categories: { id: string; name_en: string }[] }>('/categories');
   const { run, busy } = useAction();
+  const toast = useToast();
   const nav = useNavigate();
   const [mode, setMode] = useState<'separate' | 'group'>(ids.length > 1 ? 'separate' : 'separate');
   const [category, setCategory] = useState('');
@@ -41,7 +42,7 @@ function ImportDialog({ ids, onClose, providerName }: { ids: string[]; onClose: 
         setCategory(categoryId);
       }
       const named = mode === 'group' && target === 'new' && groupName.name_en.trim();
-      return api<{ product_ids: string[] }>('/import', {
+      return api<{ product_ids: string[]; skipped?: number }>('/import', {
         body: {
           provider_product_ids: ids, category_id: categoryId, mode, routing,
           product_id: mode === 'group' && target === 'existing' ? productId || undefined : undefined,
@@ -51,6 +52,7 @@ function ImportDialog({ ids, onClose, providerName }: { ids: string[]; onClose: 
       });
     }, { success: creatingCat ? 'Category created and products imported' : 'Imported', invalidate: ['/providers', '/products', '/categories', '/dashboard'] });
     if (r) {
+      if (r.skipped) toast(`${r.skipped} already in the store — skipped`);
       onClose();
       if (r.product_ids.length === 1) nav(`/products/${r.product_ids[0]}`);
     }

@@ -263,14 +263,29 @@ providerRoutes.post('/import', async (c) => {
   pps.sort((a, b2) => (order.get(a.id) ?? 0) - (order.get(b2.id) ?? 0));
 
   const created: string[] = [];
+  let skipped = 0;
   if (b.mode === 'separate') {
+    // never import the same provider product twice (a retried or double-clicked import
+    // used to create a second copy of every product)
+    const linked = check(await db(c.env).from('product_sources').select('provider_product_id').in('provider_product_id', pps.map((p) => p.id))) as { provider_product_id: string }[];
+    const already = new Set(linked.map((l) => l.provider_product_id));
+    const fresh = pps.filter((pp) => !already.has(pp.id));
+    skipped = pps.length - fresh.length;
+    if (!fresh.length) fail(409, `All ${pps.length} selected products are already in the store`);
+
     // bulk inserts (Workers Free allows ~50 outgoing calls per request): ids are generated
     // here so every source row can point at its product without a read-back
-    const products = pps.map((pp) => ({ id: crypto.randomUUID(), ...productFromPP(pp, b.category_id ?? null) }));
-    const sources = products.map((p, i) => ({ product_id: p.id, kind: 'provider', provider_product_id: pps[i].id, priority: 0 }));
-    for (let i = 0; i < products.length; i += 100) {
-      check(await db(c.env).from('products').insert(products.slice(i, i + 100)));
-      check(await db(c.env).from('product_sources').insert(sources.slice(i, i + 100)));
+    const products = fresh.map((pp) => ({ id: crypto.randomUUID(), ...productFromPP(pp, b.category_id ?? null) }));
+    const sources = products.map((p, i) => ({ product_id: p.id, kind: 'provider', provider_product_id: fresh[i].id, priority: 0 }));
+    try {
+      for (let i = 0; i < products.length; i += 100) {
+        check(await db(c.env).from('products').insert(products.slice(i, i + 100)));
+        check(await db(c.env).from('product_sources').insert(sources.slice(i, i + 100)));
+      }
+    } catch (e) {
+      // all or nothing: remove what this request created so a retry starts clean
+      await db(c.env).from('products').delete().in('id', products.map((p) => p.id));
+      throw e;
     }
     created.push(...products.map((p) => p.id));
   } else {
@@ -293,6 +308,6 @@ providerRoutes.post('/import', async (c) => {
   }
 
   check(await db(c.env).from('provider_products').update({ is_new: false }).in('id', pps.map((p) => p.id)));
-  await log(c, 'catalog.import', 'products', created.join(','), { mode: b.mode, count: pps.length });
-  return c.json({ ok: true, product_ids: created });
+  await log(c, 'catalog.import', 'products', created.join(','), { mode: b.mode, count: created.length, skipped });
+  return c.json({ ok: true, product_ids: created, skipped });
 });
