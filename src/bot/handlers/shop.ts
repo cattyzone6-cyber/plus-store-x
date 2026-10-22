@@ -1,8 +1,9 @@
 import type { BotContext } from '../context';
-import { answer, show, tr } from '../context';
+import { answer, getAdmin, show, tr } from '../context';
 import { backHomeRow, btn, cb, chunkLines, discountPercent, homeRow, loc, priceHtml, priceText, truncate } from '../ui';
 import { activeGroups, orderPacks, getCategory, getGroupView, getProductView, listAllProducts, listCategories, listCategoryEntries, productCounts, UNCATEGORIZED, type GroupView, type ProductView } from '../../services/catalog';
-import { fixedQuantity } from '../../services/pricing';
+import { fixedQuantity, priceProduct } from '../../services/pricing';
+import { fmtUsd } from '../../lib/money';
 import { hasStockAlert, setAlertsOptIn, toggleStockAlert } from '../../services/alerts';
 import { plain } from '../context';
 import { customEmojiHtml } from '../../lib/emoji';
@@ -109,6 +110,35 @@ export async function showUncategorized(ctx: BotContext): Promise<void> {
 }
 
 /** Product screen: the group's picture/description and one button per pack (full pack names). */
+/** Price a customer without personal discounts pays (what the owner sees as "customer price"). */
+function publicPrice(ctx: BotContext, v: ProductView): number | null {
+  return priceProduct(v.product, v.pricing.options, ctx.st.s, null).unitPrice;
+}
+
+/** Owner-only lines: provider cost, customer price and profit. Support and customers see nothing. */
+async function ownerPackLines(ctx: BotContext, v: ProductView): Promise<string[]> {
+  if ((await getAdmin(ctx))?.role !== 'owner') return [];
+  const cost = v.pricing.referenceCost;
+  const price = publicPrice(ctx, v);
+  const out: string[] = [];
+  if (cost != null && price != null) {
+    const profit = price - cost;
+    out.push(tr(ctx, 'owner_price_line', { cost: fmtUsd(cost), price: fmtUsd(price), profit: fmtUsd(profit), pct: cost > 0 ? Math.round((profit / cost) * 100) : 0 }));
+  }
+  if (v.pricing.paused) out.push(tr(ctx, 'owner_paused_line', { reason: tr(ctx, `owner_paused_${v.pricing.paused}`) }));
+  return out;
+}
+
+async function ownerGroupBlock(ctx: BotContext, g: GroupView): Promise<string> {
+  if ((await getAdmin(ctx))?.role !== 'owner') return '';
+  const lines = g.packs.slice(0, 25).map((v) => tr(ctx, 'owner_group_line', {
+    name: loc(v.product, 'name', ctx.st.user.lang),
+    cost: v.pricing.referenceCost != null ? fmtUsd(v.pricing.referenceCost) : '—',
+    price: fmtUsd(publicPrice(ctx, v) ?? 0),
+  }));
+  return lines.length ? `\n\n${tr(ctx, 'owner_group_head')}\n${lines.join('\n')}` : '';
+}
+
 export async function showGroup(ctx: BotContext, groupId: string): Promise<void> {
   const { env, s, user } = ctx.st;
   const lang = user.lang;
@@ -129,7 +159,7 @@ export async function showGroup(ctx: BotContext, groupId: string): Promise<void>
     description: raw(desc ? `<blockquote expandable>${escapeHtml(desc)}</blockquote>\n` : ''),
     sale: raw(reduced ? `${tr(ctx, 'category_sale_line', { n: reduced, count: g.packs.length })}\n\n` : ''),
     count: g.packs.length,
-  });
+  }) + await ownerGroupBlock(ctx, g);
   await show(ctx, html, kb, { imageUrl: group.image_url });
 }
 
@@ -221,6 +251,7 @@ export async function showProduct(ctx: BotContext, productId: string): Promise<v
   lines.push(tr(ctx, 'product_stock_line', { stock: stockText(ctx, v) }));
   lines.push(tr(ctx, 'product_type_line', { type: deliveryTypeText(ctx, v) }));
   if (product.sold_count > 0) lines.push(tr(ctx, 'product_sold_line', { n: product.sold_count }));
+  lines.push(...await ownerPackLines(ctx, v));
 
   const desc = loc(product, 'description', lang);
   const manual = product.fulfillment === 'manual' || v.pricing.route[0]?.source.kind === 'manual';
