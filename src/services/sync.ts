@@ -8,10 +8,9 @@ import { sha256Hex } from '../lib/crypto';
 import { getSettings } from '../lib/settings';
 import { fmtUsd } from '../lib/money';
 import { escapeHtml } from '../lib/i18n';
-import { sendMessage } from '../lib/telegram';
 import { notifyAdmins } from './notify';
-import { getProductView } from './catalog';
 import { SYNCABLE_FIELDS } from './sync-fields';
+import { markRestocked } from './alerts';
 
 export interface SyncStats {
   total: number;
@@ -186,8 +185,9 @@ export async function syncProvider(app: AppCtx, providerId: string): Promise<Syn
     }
     if (lines.length) await notifyAdmins(env, 'catalog_changes', `📦 <b>${escapeHtml(prov.name)}</b> catalog sync\n\n${lines.join('\n\n')}`);
 
+    // announced to customers / the channel by services/alerts.ts on the next cron tick
     const restockedProducts = [...new Set(linkedSources.filter((s) => backInStock.includes(s.provider_product_id!)).map((s) => s.product_id))];
-    if (restockedProducts.length) await postBackInStock(app, restockedProducts);
+    await markRestocked(env, restockedProducts);
 
     await db(env).from('providers').update({
       last_sync_at: now,
@@ -246,27 +246,6 @@ async function refreshProductInfo(
     }
   }
   return updates;
-}
-
-/** "Back in stock" post to the store channel (when enabled). */
-async function postBackInStock(app: AppCtx, productIds: string[]): Promise<void> {
-  const s = await getSettings(app.env);
-  if (!s.features.stock_channel_posts || !s.notifications.stock_channel_id) return;
-  for (const id of productIds.slice(0, 5)) {
-    const view = await getProductView(app.env, s, id, null);
-    if (!view || !view.product.is_active || view.pricing.soldOut || view.pricing.unitPrice == null) continue;
-    const p = view.product;
-    const name = escapeHtml(p.name_en);
-    const nameAr = escapeHtml(p.name_ar || p.name_en);
-    const price = fmtUsd(view.pricing.unitPrice);
-    const html =
-      `✅ <b>Back in stock:</b> ${p.emoji ? `${p.emoji} ` : ''}${name}\n💵 ${price}\n\n` +
-      `✅ <b>متوفر من جديد:</b> ${nameAr}\n💵 ${price}`;
-    const keyboard = s.brand.bot_username
-      ? [[{ text: `🛒 Buy ${p.name_en}`.slice(0, 60), url: `https://t.me/${s.brand.bot_username}?start=p_${p.id}`, style: 'success' as const }]]
-      : undefined;
-    await sendMessage(app.env, s.notifications.stock_channel_id, html, { keyboard }).catch((e) => console.error('stock post failed', e));
-  }
 }
 
 /** Cron: sync up to 2 providers whose interval elapsed. */

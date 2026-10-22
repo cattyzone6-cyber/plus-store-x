@@ -128,6 +128,16 @@ export interface AppSettings {
     };
   };
   referral: { percent: number };
+  /** customer announcements (new products, back in stock, "notify me") */
+  alerts: {
+    new_products: boolean;
+    restock: boolean;
+    notify_me: boolean;
+    /** wait this long after a product is created before announcing it (time to edit it) */
+    new_delay_minutes: number;
+    /** do not announce the same product as back in stock more often than this */
+    restock_cooldown_hours: number;
+  };
   cashback: { points_per_usd: number; usd_per_point: number; min_redeem_points: number };
   warranty: {
     auto_replace_from_stock: boolean;
@@ -277,6 +287,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     },
   },
   referral: { percent: 5 },
+  alerts: { new_products: true, restock: true, notify_me: true, new_delay_minutes: 10, restock_cooldown_hours: 12 },
   cashback: { points_per_usd: 10, usd_per_point: 0.01, min_redeem_points: 100 },
   warranty: { auto_replace_from_stock: false, default_resolution: 'replace', allow_refund_requests: true },
   notifications: {

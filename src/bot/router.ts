@@ -1,7 +1,7 @@
 import type { BotContext } from './context';
 import { answer, plain, setState, tr } from './context';
 import { showForceJoin, showHome, showLanguagePicker } from './handlers/home';
-import { showCategory, showPriceList, showProduct, showShop } from './handlers/shop';
+import { onToggleAlerts, onToggleNotifyMe, showCategory, showPriceList, showProduct, showShop } from './handlers/shop';
 import {
   askCustomQty, askPromo, cancelCheckout, chooseQuantity, onInputOption, onInputText, onPromoText, onQtyText,
   payWithGateway, payWithWallet, reopenCheckout, startBuy,
@@ -40,7 +40,8 @@ export async function onCallback(ctx: BotContext, data: string, botUsername: str
     case 'shop': return showShop(ctx);
     case 'sc': return showShop(ctx, a);
     case 'c': return showCategory(ctx, a);
-    case 'so': return answer(ctx, plain(tr(ctx, 'sold_out_alert')), true);
+    case 'so': return showProduct(ctx, a); // sold-out products open too ("notify me" button)
+    case 'na': return onToggleNotifyMe(ctx, a);
     case 'p': return showProduct(ctx, a);
     case 'b': return startBuy(ctx, a);
     case 'q': return chooseQuantity(ctx, a, Number(b));
@@ -66,6 +67,7 @@ export async function onCallback(ctx: BotContext, data: string, botUsername: str
       return answer(ctx);
 
     case 'prof': return showProfile(ctx);
+    case 'al': return onToggleAlerts(ctx, () => showProfile(ctx));
     case 'orders': return showOrders(ctx, Number(a) || 0);
     case 'o': return showOrder(ctx, Number(a));
     case 'txt': return onTxt(ctx, Number(a));

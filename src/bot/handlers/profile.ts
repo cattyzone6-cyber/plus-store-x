@@ -63,6 +63,9 @@ export async function showProfile(ctx: BotContext): Promise<void> {
   if (s.features.reseller_api) row4.push(btn(ctx, 'btn_api', 'api', 'api'));
   if (s.features.replacements) row4.push(btn(ctx, 'btn_replace', 'rep', 'replace'));
   if (row4.length) kb.push(row4);
+  if (s.alerts.new_products || s.alerts.restock) {
+    kb.push([btn(ctx, u.alerts_opt_in ? 'btn_alerts_on' : 'btn_alerts_off', 'al', 'bell', u.alerts_opt_in ? 'success' : 'default')]);
+  }
   kb.push([btn(ctx, 'btn_language', 'lang', 'language'), ...homeRow(ctx)]);
   await show(ctx, html, kb);
 }

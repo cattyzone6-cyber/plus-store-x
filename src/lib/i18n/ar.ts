@@ -335,4 +335,19 @@ export const ar: Partial<Record<keyof typeof en, string>> & Record<string, strin
   order_refunded_auto:
     '{e:refund} <b>تم استرداد الطلب {code}</b>\n\nلم نتمكن من تسليم <b>{product}</b> حالياً، لذلك أُعيد <b>{amount}</b> إلى محفظتك.',
   order_refunded: '{e:refund} <b>استرداد للطلب {code}</b>\n\nتمت إضافة <b>{amount}</b> إلى محفظتك.',
+
+  // ── تنبيهات الزبائن ──
+  btn_notify_me: 'نبّهني عند التوفر',
+  btn_notify_on: 'سننبهك — اضغط للإلغاء',
+  notify_me_added: 'تم! سنرسل لك رسالة فور توفر المنتج.',
+  notify_me_removed: 'تم إلغاء التنبيه.',
+  btn_alerts_on: 'تنبيهات المتجر: مفعّلة',
+  btn_alerts_off: 'تنبيهات المتجر: متوقفة',
+  alerts_turned_on: 'تم تفعيل التنبيهات — ستصلك المنتجات الجديدة وإعادة التوفر.',
+  alerts_turned_off: 'تم إيقاف التنبيهات — لن تصلك رسائل المنتجات الجديدة أو إعادة التوفر.',
+  btn_open_shop: 'افتح المتجر',
+  alert_line: '{emoji} <b>{name}</b> — {price}',
+  alert_new_products: '{e:fire} <b>جديد في المتجر!</b>\n\n{lines}\n\n<i>اضغط بالأسفل للشراء</i> 👇',
+  alert_back_in_stock: '{e:success} <b>توفر من جديد!</b>\n\n{lines}\n\n<i>احصل عليه قبل أن ينفد</i> 👇',
+  alert_notify_me: '{e:bell} <b>خبر سار!</b>\n\n{emoji} <b>{name}</b> توفر من جديد.\n{e:price} السعر: <b>{price}</b>',
 };

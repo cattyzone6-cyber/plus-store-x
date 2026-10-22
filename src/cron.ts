@@ -8,6 +8,7 @@ import { pollPendingDeposits, expireDeposits } from './services/deposits';
 import { continueBroadcasts } from './services/broadcast';
 import { finishDueGiveaways } from './services/giveaways';
 import { notifyAdmins } from './services/notify';
+import { runAlerts } from './services/alerts';
 
 /** Returns true (and records the run) when `key` has not run for `minutes`. */
 async function due(app: AppCtx, key: string, minutes: number, now: Date): Promise<boolean> {
@@ -36,6 +37,7 @@ export async function runCron(app: AppCtx, now: Date): Promise<void> {
   await step('expire', () => expireDeposits(app));
   await step('broadcasts', () => continueBroadcasts(app)); // free plan; paid plan re-enqueues itself
   await step('sync', () => syncDueProviders(app));
+  await step('alerts', () => runAlerts(app));
   if (await due(app, 'balances', 30, now)) await step('balances', () => checkProviderBalances(app));
   if (await due(app, 'giveaways', 5, now)) await step('giveaways', () => finishDueGiveaways(app));
 }
