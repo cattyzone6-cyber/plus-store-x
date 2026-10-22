@@ -8,6 +8,7 @@ import { Login } from './pages/Login';
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Providers = lazy(() => import('./pages/Providers'));
 const ProviderCatalog = lazy(() => import('./pages/ProviderCatalog'));
+const Catalog = lazy(() => import('./pages/Catalog'));
 const Categories = lazy(() => import('./pages/Categories'));
 const Products = lazy(() => import('./pages/Products'));
 const ProductEditor = lazy(() => import('./pages/ProductEditor'));
@@ -42,6 +43,7 @@ export function App() {
           <Route index element={<Dashboard />} />
           <Route path="providers" element={<OwnerOnly><Providers /></OwnerOnly>} />
           <Route path="providers/:id" element={<OwnerOnly><ProviderCatalog /></OwnerOnly>} />
+          <Route path="catalog" element={<Catalog />} />
           <Route path="categories" element={<Categories />} />
           <Route path="products" element={<Products />} />
           <Route path="products/:id" element={<ProductEditor />} />

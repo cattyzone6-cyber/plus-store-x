@@ -5,7 +5,7 @@ import type { Env } from '../env';
 import type { CategoryRow, Lang } from '../types';
 import { getSettings, baseUrl, type AppSettings } from '../lib/settings';
 import { db, must } from '../lib/db';
-import { listAllProducts, productCounts } from '../services/catalog';
+import { activeGroups, listAllProducts, productCounts } from '../services/catalog';
 import { fmtUsd } from '../lib/money';
 import { pick } from '../lib/i18n';
 
@@ -60,6 +60,8 @@ interface Shelf {
 }
 
 interface Featured {
+  /** g = product (group) → ?start=g_<id>, p = single pack → ?start=p_<id> */
+  kind: 'g' | 'p';
   id: string;
   name: string;
   emoji: string | null;
@@ -87,7 +89,10 @@ async function loadData(env: Env, s: AppSettings, lang: Lang): Promise<Data> {
       return c;
     };
 
-    const [counts, views] = await Promise.all([productCounts(env), listAllProducts(env, s, null)]);
+    const [counts, views, groups] = await Promise.all([productCounts(env), listAllProducts(env, s, null), activeGroups(env)]);
+    // a pack inside a product group belongs to the group's category
+    const catOf = (v: (typeof views)[number]): string | null =>
+      v.product.group_id && groups.has(v.product.group_id) ? groups.get(v.product.group_id)!.category_id : v.product.category_id;
     const shelf = new Map<string, Shelf>();
     for (const c of cats) {
       if (c.parent_id) continue;
@@ -99,14 +104,24 @@ async function loadData(env: Env, s: AppSettings, lang: Lang): Promise<Data> {
       if (t) t.count += n;
     }
     for (const v of views) {
-      const root = rootOf(v.product.category_id);
+      const root = rootOf(catOf(v));
       const t = root && shelf.get(root.id);
       if (t && v.pricing.unitPrice != null) t.from = t.from == null ? v.pricing.unitPrice : Math.min(t.from, v.pricing.unitPrice);
     }
-    const featured = views
+    // featured products (groups) first, priced "from" their cheapest in-stock pack
+    const groupFrom = new Map<string, number>();
+    for (const v of views) {
+      const gid = v.product.group_id;
+      if (!gid || !groups.has(gid) || v.pricing.unitPrice == null) continue;
+      groupFrom.set(gid, Math.min(groupFrom.get(gid) ?? Number.MAX_VALUE, v.pricing.unitPrice));
+    }
+    const featuredGroups: Featured[] = [...groups.values()]
+      .filter((g) => g.is_featured && groupFrom.has(g.id))
+      .map((g) => ({ kind: 'g' as const, id: g.id, name: loc(g, 'name', lang), emoji: g.emoji, price: groupFrom.get(g.id)!, original: null, warranty: 0 }));
+    const featuredPacks: Featured[] = views
       .filter((v) => v.product.is_featured && v.pricing.unitPrice != null)
-      .slice(0, MAX_FEATURED)
       .map((v) => ({
+        kind: 'p' as const,
         id: v.product.id,
         name: loc(v.product, 'name', lang),
         emoji: v.product.emoji,
@@ -114,6 +129,7 @@ async function loadData(env: Env, s: AppSettings, lang: Lang): Promise<Data> {
         original: v.pricing.originalUnitPrice != null && v.pricing.originalUnitPrice > v.pricing.unitPrice! + 0.004 ? v.pricing.originalUnitPrice : null,
         warranty: v.product.warranty_days,
       }));
+    const featured = [...featuredGroups, ...featuredPacks].slice(0, MAX_FEATURED);
     return {
       shelves: [...shelf.values()].filter((t) => t.count > 0).slice(0, MAX_SHELF),
       featured,
@@ -150,7 +166,7 @@ const UI = {
     soon_title: 'The shelf is being stocked.',
     soon_text: 'Brands appear here the moment they go live in the bot.',
     soon: 'Soon',
-    packs: (n: number) => (n === 1 ? '1 pack' : `${n} packs`),
+    packs: (n: number) => (n === 1 ? '1 product' : `${n} products`),
     from: 'from',
     restocking: 'Restocking',
     featured: 'Featured',
@@ -198,7 +214,7 @@ const UI = {
     soon_title: 'نجهّز الرفوف الآن.',
     soon_text: 'تظهر الخدمات هنا فور إطلاقها داخل البوت.',
     soon: 'قريباً',
-    packs: (n: number) => (n === 1 ? 'باقة واحدة' : n === 2 ? 'باقتان' : n <= 10 ? `${n} باقات` : `${n} باقة`),
+    packs: (n: number) => (n === 1 ? 'منتج واحد' : n === 2 ? 'منتجان' : n <= 10 ? `${n} منتجات` : `${n} منتج`),
     from: 'ابتداءً من',
     restocking: 'يُعاد توفيرها',
     featured: 'مختارات',
@@ -461,6 +477,7 @@ a.tile:hover .price .ico{color:var(--gold);transform:translateX(3px)}
 .card .meta{font-size:13px;color:var(--muted)}
 .card .pr{display:flex;align-items:baseline;gap:8px;margin-top:auto;padding-top:12px;font:700 22px/1 var(--display)}
 .card .pr s{font:400 14px/1 var(--body);color:var(--faint)}
+.card .pr .from{font:400 13px/1 var(--body);color:var(--faint)}
 .card .go{display:inline-flex;align-items:center;gap:8px;min-height:44px;margin-top:6px;font-size:14px;font-weight:600;color:var(--gold)}
 
 /* receipt + seal */
@@ -850,10 +867,10 @@ function Page(props: { s: AppSettings; lang: Lang; data: Data; origin: string })
                     <p class="label">{ui.featured}</p>
                     <div class="feat-row">
                       {data.featured.map((f) => (
-                        <a class="card" href={botLink(s, `p_${f.id}`)}>
+                        <a class="card" href={botLink(s, `${f.kind}_${f.id}`)}>
                           <span class="nm">{f.emoji ? `${f.emoji} ` : ''}{f.name}</span>
                           {f.warranty > 0 && <span class="meta">{ui.warranty_d(f.warranty)}</span>}
-                          <span class="pr"><bdi dir="ltr">{fmtUsd(f.price)}</bdi>{f.original != null && <s><bdi dir="ltr">{fmtUsd(f.original)}</bdi></s>}</span>
+                          <span class="pr">{f.kind === 'g' && <span class="from">{ui.from} </span>}<bdi dir="ltr">{fmtUsd(f.price)}</bdi>{f.original != null && <s><bdi dir="ltr">{fmtUsd(f.original)}</bdi></s>}</span>
                           <span class="go"><TgIcon size={16} />{ui.buy}</span>
                         </a>
                       ))}

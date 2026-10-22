@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
-  LayoutDashboard, Server, FolderTree, Package, ShoppingCart, Hand, Wallet, Users, LifeBuoy, TicketPercent, Gift,
+  LayoutDashboard, LayoutGrid, Server, FolderTree, Package, ShoppingCart, Hand, Wallet, Users, LifeBuoy, TicketPercent, Gift,
   PartyPopper, Sparkles, Megaphone, Smile, Settings, ShieldCheck, Cpu, Menu, X, LogOut, Languages, ExternalLink,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
@@ -24,6 +24,7 @@ export function Layout() {
     { title: 'store', items: [
       { to: '/', key: 'dashboard', icon: <LayoutDashboard className="h-4 w-4" /> },
       { to: '/providers', key: 'providers', icon: <Server className="h-4 w-4" />, owner: true, badge: ov.new_provider_products },
+      { to: '/catalog', key: 'catalog', icon: <LayoutGrid className="h-4 w-4" /> },
       { to: '/categories', key: 'categories', icon: <FolderTree className="h-4 w-4" /> },
       { to: '/products', key: 'products', icon: <Package className="h-4 w-4" /> },
     ] },

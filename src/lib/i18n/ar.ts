@@ -98,6 +98,8 @@ export const ar: Partial<Record<keyof typeof en, string>> & Record<string, strin
   shop_title: '{e:shop} <b>المتجر</b>\n\nاختر القسم 👇',
   shop_choose: 'اختر القسم 👇',
   btn_other_products: 'منتجات أخرى',
+  group_button: '{name} · من {price}',
+  group_view: '{emoji} <b>{name}</b>\n{description}\n{sale}<i>{count} باقة — اضغط على إحداها لرؤية التفاصيل.</i>',
   category_other_view: '{e:product} <b>منتجات أخرى</b>\n\n<i>{count} منتج — اضغط على أحدها لرؤية التفاصيل.</i>',
   shop_all_products: '{e:shop} <b>المتجر</b>\n\n<i>{count} منتج — اضغط على أحدها لرؤية التفاصيل.</i>',
   shop_empty: '{e:shop} <b>المتجر</b>\n\n<i>لا توجد منتجات بعد — عد قريباً!</i>',
@@ -134,6 +136,7 @@ export const ar: Partial<Record<keyof typeof en, string>> & Record<string, strin
   qty_custom_prompt: '{e:quantity} أرسل الكمية كرقم (<b>{min}–{max}</b>).',
   qty_invalid: '{e:warning} أرسل رقماً صحيحاً بين <b>{min}</b> و <b>{max}</b>.',
   pricelist_title: '{e:orders} <b>قائمة الأسعار</b> — كل المتوفر\n',
+  pricelist_group: '\n{emoji} <b>{name}</b>',
   pricelist_line: '{emoji} {name} — {price}',
   pricelist_empty: '{e:info} لا يوجد شيء متوفر حالياً — عد قريباً!',
 
