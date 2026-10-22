@@ -97,6 +97,9 @@ export const ar: Partial<Record<keyof typeof en, string>> & Record<string, strin
   // ── shop ──
   shop_title: '{e:shop} <b>المتجر</b>\n\nاختر القسم 👇',
   shop_choose: 'اختر القسم 👇',
+  btn_other_products: 'منتجات أخرى',
+  category_other_view: '{e:product} <b>منتجات أخرى</b>\n\n<i>{count} منتج — اضغط على أحدها لرؤية التفاصيل.</i>',
+  shop_all_products: '{e:shop} <b>المتجر</b>\n\n<i>{count} منتج — اضغط على أحدها لرؤية التفاصيل.</i>',
   shop_empty: '{e:shop} <b>المتجر</b>\n\n<i>لا توجد منتجات بعد — عد قريباً!</i>',
   category_view: '{emoji} <b>{name}</b>\n{description}\n{sale}<i>{count} منتج — اضغط على أحدها لرؤية التفاصيل.</i>',
   category_empty: '{emoji} <b>{name}</b>\n{description}\n<i>لا توجد منتجات في هذا القسم حالياً.</i>',

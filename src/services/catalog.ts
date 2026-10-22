@@ -90,6 +90,22 @@ export async function listAllProducts(env: Env, s: AppSettings, user: UserRow | 
 export async function productCounts(env: Env): Promise<Map<string, number>> {
   const rows = must(await db(env).from('products').select('category_id').eq('is_active', true), 'product counts') as { category_id: string | null }[];
   const m = new Map<string, number>();
-  for (const r of rows) if (r.category_id) m.set(r.category_id, (m.get(r.category_id) ?? 0) + 1);
+  for (const r of rows) {
+    const k = r.category_id ?? UNCATEGORIZED;
+    m.set(k, (m.get(k) ?? 0) + 1);
+  }
   return m;
+}
+
+/** productCounts() key for active products without a category. */
+export const UNCATEGORIZED = 'none';
+
+/** Active products without a category (shown as "Other products" in the bot). */
+export async function listUncategorizedProducts(env: Env, s: AppSettings, user: UserRow | null): Promise<ProductView[]> {
+  const rows = must(
+    await db(env).from('products').select('*').is('category_id', null).eq('is_active', true).order('sort').order('name_en'),
+    'uncategorized products',
+  ) as ProductRow[];
+  const views = await viewProducts(env, s, rows, user);
+  return views.filter((v) => v.pricing.unitPrice != null && (s.bot.show_sold_out || !v.pricing.soldOut));
 }

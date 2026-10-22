@@ -96,6 +96,9 @@ export const en = {
   // ── shop ──
   shop_title: '{e:shop} <b>Shop</b>\n\nChoose a category 👇',
   shop_choose: 'Choose a category 👇',
+  btn_other_products: 'Other products',
+  category_other_view: '{e:product} <b>Other products</b>\n\n<i>{count} products — tap one to see the details.</i>',
+  shop_all_products: '{e:shop} <b>Shop</b>\n\n<i>{count} products — tap one to see the details.</i>',
   shop_empty: '{e:shop} <b>Shop</b>\n\n<i>No products yet — check back soon!</i>',
   category_view: '{emoji} <b>{name}</b>\n{description}\n{sale}<i>{count} products — tap one to see the details.</i>',
   category_empty: '{emoji} <b>{name}</b>\n{description}\n<i>No products in this category right now.</i>',

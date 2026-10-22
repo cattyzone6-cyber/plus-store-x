@@ -95,7 +95,7 @@ function ImportDialog({ ids, onClose, providerName }: { ids: string[]; onClose: 
         {!(mode === 'group' && target === 'existing') && (
           <Field label="Category (the folder customers open, e.g. ChatGPT)">
             <Select value={category} onChange={(e) => setCategory(e.target.value)} options={[
-              { value: '', label: '— no category (hidden) —' },
+              { value: '', label: '— no category (listed under "Other products") —' },
               { value: '__new', label: '+ New category…' },
               ...(cats.data?.categories ?? []).map((c) => ({ value: c.id, label: c.name_en })),
             ]} />
