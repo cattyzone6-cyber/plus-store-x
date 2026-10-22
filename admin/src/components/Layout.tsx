@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
-  LayoutDashboard, LayoutGrid, Server, FolderTree, Package, ShoppingCart, Hand, Wallet, Users, LifeBuoy, TicketPercent, Gift,
+  LayoutDashboard, LayoutGrid, TrendingUp, Server, FolderTree, Package, ShoppingCart, Hand, Wallet, Users, LifeBuoy, TicketPercent, Gift,
   PartyPopper, Sparkles, Megaphone, Smile, Settings, ShieldCheck, Cpu, Menu, X, LogOut, Languages, ExternalLink,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
@@ -9,7 +9,7 @@ import { useT, type UiKey } from '../lib/i18n';
 import { useApi } from '../lib/hooks';
 import { cx } from './ui';
 
-interface NavItem { to: string; key: UiKey; icon: ReactNode; owner?: boolean; badge?: number }
+interface NavItem { to: string; key?: UiKey; label?: [en: string, ar: string]; icon: ReactNode; owner?: boolean; badge?: number }
 
 export function Layout() {
   const { admin, config, signOut } = useAuth();
@@ -23,6 +23,7 @@ export function Layout() {
   const groups: { title: UiKey; items: NavItem[] }[] = [
     { title: 'store', items: [
       { to: '/', key: 'dashboard', icon: <LayoutDashboard className="h-4 w-4" /> },
+      { to: '/profit', label: ['Profit', 'الأرباح'], icon: <TrendingUp className="h-4 w-4" />, owner: true },
       { to: '/providers', key: 'providers', icon: <Server className="h-4 w-4" />, owner: true, badge: ov.new_provider_products },
       { to: '/catalog', key: 'catalog', icon: <LayoutGrid className="h-4 w-4" /> },
       { to: '/categories', key: 'categories', icon: <FolderTree className="h-4 w-4" /> },
@@ -54,7 +55,8 @@ export function Layout() {
 
   // title of the current page for the phone top bar
   const section = '/' + (loc.pathname.split('/')[1] ?? '');
-  const current = groups.flatMap((g) => g.items).find((i) => (i.to === '/' ? section === '/' : section === i.to))?.key;
+  const itemName = (i: NavItem) => (i.label ? tx(i.label[0], i.label[1]) : i.key ? t(i.key) : '');
+  const currentItem = groups.flatMap((g) => g.items).find((i) => (i.to === '/' ? section === '/' : section === i.to));
 
   const nav = (
     <nav className="flex flex-1 flex-col gap-5 overflow-y-auto px-3 pb-4">
@@ -76,7 +78,7 @@ export function Layout() {
                 )}
               >
                 {i.icon}
-                <span className="flex-1">{t(i.key)}</span>
+                <span className="flex-1">{itemName(i)}</span>
                 {!!i.badge && <span className="rounded-full bg-gold px-1.5 text-[10px] font-bold text-black">{i.badge}</span>}
               </NavLink>
             ))}
@@ -128,7 +130,7 @@ export function Layout() {
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-30 flex items-center gap-2 border-b border-ink-700 bg-ink-900/95 px-2 py-1.5 backdrop-blur lg:hidden">
           <button onClick={() => setOpen(true)} aria-label={t('menu')} className="grid h-10 w-10 place-items-center rounded-lg hover:bg-ink-800"><Menu className="h-5 w-5" /></button>
-          <div className="min-w-0 flex-1 truncate font-semibold">{current ? t(current) : <span className="gold-text">{config?.brandName}</span>}</div>
+          <div className="min-w-0 flex-1 truncate font-semibold">{currentItem ? itemName(currentItem) : <span className="gold-text">{config?.brandName}</span>}</div>
           <button onClick={() => setLang(lang === 'en' ? 'ar' : 'en')} className="flex h-10 items-center gap-1 rounded-lg px-2.5 text-xs text-ink-300 hover:bg-ink-800"><Languages className="h-4 w-4" /> {t('language')}</button>
         </header>
         <main key={loc.pathname.split('/')[1]} className="flex-1 overflow-y-auto">

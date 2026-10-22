@@ -46,6 +46,7 @@ export async function showShop(ctx: BotContext, parentId: string | null = null):
   );
   if (uncategorized > 0) buttons.push(button({ text: tr(ctx, 'btn_other_products'), emoji: 'product', style: 'default', data: cb('c', UNCATEGORIZED) }, em));
   const kb = grid(buttons, s.bot.category_columns);
+  if (!parent) kb.push([searchButton(ctx)]);
   kb.push(parent ? backHomeRow(ctx, parent.parent_id ? cb('sc', parent.parent_id) : 'shop') : homeRow(ctx));
   const title = parent ? `${categoryEmojiHtml(ctx, parent)} <b>${escapeHtml(loc(parent, 'name', lang))}</b>\n\n${tr(ctx, 'shop_choose')}` : tr(ctx, 'shop_title');
   await show(ctx, title, kb);
@@ -60,7 +61,7 @@ export function productButtonText(ctx: BotContext, v: ProductView): string {
   return truncate(`${name} | ${priceText(p.unitPrice, p.originalUnitPrice)} | ${stock}`, 60);
 }
 
-function productButton(ctx: BotContext, v: ProductView): InlineButton {
+export function productButton(ctx: BotContext, v: ProductView): InlineButton {
   const { s, em } = ctx.st;
   const soldOut = v.pricing.soldOut;
   return button({
@@ -72,6 +73,10 @@ function productButton(ctx: BotContext, v: ProductView): InlineButton {
   }, em);
 }
 
+export function searchButton(ctx: BotContext, key = 'btn_search'): InlineButton {
+  return button({ text: tr(ctx, key), fallbackEmoji: '🔍', style: 'default', data: 'srch' }, ctx.st.em);
+}
+
 /** "ChatGPT Plus · from $13.50" — opens the product's pack list. */
 export function groupButtonText(ctx: BotContext, g: GroupView): string {
   const name = loc(g.group, 'name', ctx.st.user.lang);
@@ -80,7 +85,7 @@ export function groupButtonText(ctx: BotContext, g: GroupView): string {
   return truncate(plain(tr(ctx, 'group_button', { name, price: g.fromPrice != null ? priceText(g.fromPrice) : '—' })), 60);
 }
 
-function groupButton(ctx: BotContext, g: GroupView): InlineButton {
+export function groupButton(ctx: BotContext, g: GroupView): InlineButton {
   const { s, em } = ctx.st;
   return button({
     text: groupButtonText(ctx, g),
@@ -98,6 +103,7 @@ export async function showUncategorized(ctx: BotContext): Promise<void> {
   const count = groups.length + packs.length;
   if (!count) return showShop(ctx);
   const kb: InlineKeyboard = [...groups.map((g) => [groupButton(ctx, g)]), ...packs.map((v) => [productButton(ctx, v)])];
+  if (!cats.length) kb.push([searchButton(ctx)]); // this list is the shop itself
   kb.push(cats.length ? backHomeRow(ctx, 'shop') : homeRow(ctx));
   await show(ctx, tr(ctx, cats.length ? 'category_other_view' : 'shop_all_products', { count }), kb);
 }

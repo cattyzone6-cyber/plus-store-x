@@ -286,6 +286,57 @@ export async function expireDeposits(app: AppCtx): Promise<void> {
   for (const d of rows) await expireOne(app, s, d);
 }
 
+/**
+ * Cron: one reminder for a payment the customer opened but has not paid, sent halfway to its
+ * expiry (e.g. after 10 of 20 minutes). Deposits under review, admin credits and windows shorter
+ * than 4 minutes are skipped.
+ */
+export async function remindPendingDeposits(app: AppCtx): Promise<void> {
+  const { env } = app;
+  const s = await getSettings(env);
+  if (!s.payments.payment_reminder) return;
+  const now = Date.now();
+  const rows = must(
+    await db(env).from('deposits').select('*').eq('status', 'pending').neq('method', 'admin').is('reminded_at', null)
+      .gt('expires_at', new Date(now).toISOString()).order('created_at', { ascending: true }).limit(40),
+    'deposits to remind',
+  ) as DepositRow[];
+  const due = rows.filter((d) => reminderDue(d, now)).slice(0, 10); // Free plan budget: 3 subrequests each
+  if (!due.length) return;
+  const em = await getEmojiResolver(env, s);
+  for (const d of due) {
+    // claim first so two overlapping ticks never send it twice
+    const claimed = must(await db(env).from('deposits').update({ reminded_at: new Date().toISOString() }).eq('id', d.id).is('reminded_at', null).eq('status', 'pending').select('id'), 'claim reminder') as { id: string }[];
+    if (!claimed.length) continue;
+    const user = await getUser(env, d.user_id);
+    if (!user || user.is_banned || user.blocked_bot) continue;
+    const minutes = Math.max(1, Math.round((new Date(d.expires_at!).getTime() - Date.now()) / 60_000));
+    const order = d.order_id ? await getOrder(env, d.order_id) : null;
+    const html = t(s, user.lang, order ? 'pay_reminder_order' : 'pay_reminder', {
+      reference: d.reference ?? '', amount: fmtUsd(d.amount_usd), minutes, code: order?.code ?? '',
+    }, em);
+    await notifyUser(env, user.id, html, reminderKeyboard(s, user.lang, d, em));
+  }
+}
+
+/** Halfway to expiry, and the payment window is at least 4 minutes long. */
+export function reminderDue(d: Pick<DepositRow, 'created_at' | 'expires_at'>, now: number): boolean {
+  if (!d.expires_at) return false;
+  const start = new Date(d.created_at).getTime();
+  const end = new Date(d.expires_at).getTime();
+  return end - start >= 4 * 60_000 && now >= start + (end - start) / 2 && now < end;
+}
+
+function reminderKeyboard(s: AppSettings, lang: Lang, d: DepositRow, em: EmojiResolver): InlineKeyboard {
+  const kb: InlineKeyboard = [];
+  if (d.pay_url) kb.push([button({ text: t(s, lang, 'btn_open_payment'), emoji: 'link', url: d.pay_url, style: 'primary' }, em)]);
+  const manual = d.method === 'shamcash' || (d.method === 'binance_id' && s.payments.binance_id.verify !== 'auto');
+  if (manual) kb.push([button({ text: t(s, lang, 'btn_send_proof'), emoji: 'download', data: `dep:proof:${d.id}`, style: 'success' }, em)]);
+  else kb.push([button({ text: t(s, lang, 'btn_check_payment'), emoji: 'confirm', data: `dep:check:${d.id}`, style: 'success' }, em)]);
+  kb.push([button({ text: t(s, lang, 'btn_cancel_deposit'), emoji: 'cancel', data: `dep:x:${d.id}`, style: 'danger' }, em)]);
+  return kb;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Manual review (ShamCash / unmatched Binance transfers)
 // ─────────────────────────────────────────────────────────────────────────────

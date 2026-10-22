@@ -424,6 +424,7 @@ export default function SettingsPage() {
             <Section title={tx('Deposits', 'الإيداعات')} section="payments" settings={s} fields={[
               { path: 'min_deposit', label: tx('Minimum deposit ($)', 'أقل إيداع ($)'), type: 'number' }, { path: 'max_deposit', label: tx('Maximum deposit ($)', 'أكبر إيداع ($)'), type: 'number' },
               { path: 'deposit_presets', label: tx('Amount buttons', 'أزرار المبالغ'), type: 'numbers' }, { path: 'deposit_expire_minutes', label: tx('Payment expires after (minutes)', 'تنتهي صلاحية الدفع بعد (دقائق)'), type: 'number' },
+              yesNo(tx('Payment reminder', 'تذكير بالدفع'), 'payment_reminder', tx('One message halfway to expiry for a payment the customer opened but did not pay (e.g. after 10 of 20 minutes)', 'رسالة واحدة في منتصف المهلة لدفعة فتحها العميل ولم يدفعها (مثلاً بعد 10 من 20 دقيقة)')),
               yesNo(tx('Binance Pay (merchant API)', 'Binance Pay (واجهة التاجر)'), 'binance_pay.enabled', tx('Automatic. Needs a Binance Pay merchant account + keys below', 'تلقائي. يحتاج حساب تاجر Binance Pay + المفاتيح أدناه')),
               { path: 'binance_pay.fee_percent', label: tx('Binance Pay fee %', 'رسوم Binance Pay %'), type: 'number' },
               yesNo(tx('Binance Pay ID (personal transfer)', 'Binance Pay ID (تحويل شخصي)'), 'binance_id.enabled', tx('Customer sends to your personal Pay ID — no merchant account needed', 'يرسل العميل إلى Pay ID الشخصي — بلا حاجة لحساب تاجر')),

@@ -7,6 +7,7 @@ import { Loading } from './components/ui';
 import { Login } from './pages/Login';
 
 const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Profit = lazy(() => import('./pages/Profit'));
 const Providers = lazy(() => import('./pages/Providers'));
 const ProviderCatalog = lazy(() => import('./pages/ProviderCatalog'));
 const Catalog = lazy(() => import('./pages/Catalog'));
@@ -43,6 +44,7 @@ export function App() {
       <Routes>
         <Route element={<Layout />}>
           <Route index element={<Dashboard />} />
+          <Route path="profit" element={<OwnerOnly><Profit /></OwnerOnly>} />
           <Route path="providers" element={<OwnerOnly><Providers /></OwnerOnly>} />
           <Route path="providers/:id" element={<OwnerOnly><ProviderCatalog /></OwnerOnly>} />
           <Route path="catalog" element={<Catalog />} />

@@ -3,7 +3,7 @@ import type { OrderRow } from './types';
 import { db, must } from './lib/db';
 import { enqueue } from './lib/jobs';
 import { syncDueProviders, checkProviderBalances } from './services/sync';
-import { pollPendingDeposits, expireDeposits } from './services/deposits';
+import { pollPendingDeposits, expireDeposits, remindPendingDeposits } from './services/deposits';
 import { continueBroadcasts } from './services/broadcast';
 import { finishDueGiveaways } from './services/giveaways';
 import { notifyAdmins } from './services/notify';
@@ -36,6 +36,7 @@ export const CRON_STEPS: Record<string, (app: AppCtx, now: Date) => Promise<unkn
     await pollPendingDeposits(app);
     await expireDeposits(app);
   },
+  reminders: (app) => remindPendingDeposits(app),
   broadcasts: (app) => continueBroadcasts(app), // free plan; paid plan re-enqueues itself
   sync: (app) => syncDueProviders(app),
   alerts: (app) => runAlerts(app),

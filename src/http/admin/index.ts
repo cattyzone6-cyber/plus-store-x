@@ -10,6 +10,7 @@ import { orderRoutes } from './orders';
 import { userRoutes } from './users';
 import { marketingRoutes } from './marketing';
 import { configRoutes, emojiPreview } from './config';
+import { profitRoutes } from './profit';
 
 export const adminApi = new Hono<AdminEnv>();
 
@@ -42,6 +43,7 @@ adminApi.use('*', adminAuth);
 adminApi.get('/me', (c) => c.json({ ok: true, admin: c.get('admin') }));
 
 adminApi.route('/', dashboardRoutes);
+adminApi.route('/', profitRoutes);
 adminApi.route('/', providerRoutes);
 adminApi.route('/', catalogRoutes);
 adminApi.route('/', orderRoutes);

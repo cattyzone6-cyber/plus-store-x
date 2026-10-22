@@ -103,6 +103,23 @@ export const ar: Partial<Record<keyof typeof en, string>> & Record<string, strin
   category_other_view: '{e:product} <b>منتجات أخرى</b>\n\n<i>{count} منتج — اضغط على أحدها لرؤية التفاصيل.</i>',
   shop_all_products: '{e:shop} <b>المتجر</b>\n\n<i>{count} منتج — اضغط على أحدها لرؤية التفاصيل.</i>',
   shop_empty: '{e:shop} <b>المتجر</b>\n\n<i>لا توجد منتجات بعد — عد قريباً!</i>',
+
+  // ── search ──
+  btn_search: 'بحث',
+  btn_search_again: 'بحث جديد',
+  btn_browse_shop: 'تصفح المتجر',
+  btn_open_in_bot: 'افتح في البوت',
+  search_prompt: '🔍 <b>بحث</b>\n\nاكتب ما تبحث عنه — اسم منتج أو علامة تجارية، مثل <i>ChatGPT</i> أو <i>CapCut 1M</i>.',
+  search_too_short: '🔍 اكتب حرفين أو رقمين على الأقل للبحث.',
+  search_results: '🔍 <b>نتائج البحث عن</b> “{query}”\n\n<i>{count} نتيجة — اضغط على إحداها لفتحها. اكتب كلمة أخرى للبحث مجدداً.</i>',
+  search_none: '🔍 لا توجد نتائج لـ “{query}”.\n\n<i>جرّب كلمة أقصر أو اسم العلامة فقط — أو تصفح المتجر.</i>',
+  inline_open_shop: 'افتح المتجر',
+  inline_group_desc: 'من {price} · متوفر',
+  inline_pack_desc: '{price} · {stock}',
+  inline_sold_out: 'نفدت الكمية',
+  inline_group_card: '{emoji} <b>{name}</b>\n{e:price} من <b>{price}</b> · {count} خيارات\n{description}',
+  inline_pack_card: '{emoji} <b>{name}</b>\n{e:price} السعر: <b>{price}</b>\n{e:stock} {stock}\n{description}',
+
   category_view: '{emoji} <b>{name}</b>\n{description}\n{sale}<i>{count} منتج — اضغط على أحدها لرؤية التفاصيل.</i>',
   category_empty: '{emoji} <b>{name}</b>\n{description}\n<i>لا توجد منتجات في هذا القسم حالياً.</i>',
   category_sale_line: '{e:sale} <b>تخفيضات</b> — <i>{n} من {count} بسعر مخفّض، والأسعار بالأسفل تشمل الخصم.</i>',

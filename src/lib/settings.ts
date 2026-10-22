@@ -107,6 +107,8 @@ export interface AppSettings {
     max_deposit: number;
     deposit_presets: number[];
     deposit_expire_minutes: number;
+    /** one reminder halfway to expiry for a payment the customer opened but did not pay */
+    payment_reminder: boolean;
     binance_pay: { enabled: boolean; fee_percent: number };
     binance_id: {
       enabled: boolean;
@@ -279,6 +281,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     max_deposit: 5000,
     deposit_presets: [5, 10, 25, 50, 100],
     deposit_expire_minutes: 60,
+    payment_reminder: true,
     binance_pay: { enabled: false, fee_percent: 0 },
     binance_id: {
       enabled: false,
