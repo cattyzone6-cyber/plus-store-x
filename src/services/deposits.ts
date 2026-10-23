@@ -16,7 +16,7 @@ import { audit, notifyAdmins, notifyUser } from './notify';
 import { cancelPendingOrder, getOrder, payOrderWithWallet } from './orders';
 import { getUser } from './users';
 
-export type DepositErrorCode = 'METHOD_DISABLED' | 'BELOW_MIN' | 'ABOVE_MAX' | 'NOT_CONFIGURED' | 'GATEWAY_ERROR' | 'NOT_FOUND';
+export type DepositErrorCode = 'METHOD_DISABLED' | 'BELOW_MIN' | 'ABOVE_MAX' | 'NOT_CONFIGURED' | 'GATEWAY_ERROR' | 'GATEWAY_MIN' | 'NOT_FOUND';
 
 export class DepositError extends Error {
   constructor(public readonly code: DepositErrorCode, public readonly vars: Record<string, unknown> = {}, message?: string) {
@@ -30,6 +30,7 @@ const ERROR_TEXT: Record<DepositErrorCode, string> = {
   ABOVE_MAX: 'pay_above_max',
   NOT_CONFIGURED: 'pay_not_configured',
   GATEWAY_ERROR: 'pay_gateway_error',
+  GATEWAY_MIN: 'pay_gateway_min',
   NOT_FOUND: 'pay_method_disabled',
 };
 
@@ -89,7 +90,9 @@ export async function createDeposit(app: AppCtx, method: DepositMethod, input: C
     const notConfigured = e instanceof GatewayError && e.message === 'NOT_CONFIGURED';
     await patchDeposit(env, deposit.id, { status: 'failed', meta: { ...deposit.meta, error: (e as Error).message.slice(0, 500) } });
     if (!notConfigured) console.error('deposit create failed', method, e);
-    throw new DepositError(notConfigured ? 'NOT_CONFIGURED' : 'GATEWAY_ERROR', {}, (e as Error).message);
+    // the gateway's own minimum for the coin / network is higher than the store minimum
+    const belowGatewayMin = e instanceof GatewayError && /minimal|minimum|too small/i.test(e.message);
+    throw new DepositError(notConfigured ? 'NOT_CONFIGURED' : belowGatewayMin ? 'GATEWAY_MIN' : 'GATEWAY_ERROR', {}, (e as Error).message);
   }
 }
 

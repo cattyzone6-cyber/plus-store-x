@@ -14,6 +14,7 @@ import {
 } from './handlers/engagement';
 import { askSearch, runSearch } from './handlers/search';
 import { cmdAdmin, cmdEmoji, cmdSetEmoji, isAdminState, onAdminCallback, onAdminMessage } from './admin';
+import { onAdminNav, showAdminHome } from './adminHome';
 import { checkForceJoin } from './forceJoin';
 import { rpc } from '../lib/db';
 import { notifyUser } from '../services/notify';
@@ -36,7 +37,7 @@ export async function onCallback(ctx: BotContext, data: string, botUsername: str
   const pendingLink = ctx.st.user.state?.kind === 'pending_link' ? String(ctx.st.user.state.data?.payload ?? '') : '';
 
   // leaving an input flow by navigating clears the pending state (except option picks)
-  if (ctx.st.user.state && head !== 'inp' && head !== 'adm' && !isAdminState(ctx.st.user.state.kind)) await setState(ctx, null);
+  if (ctx.st.user.state && head !== 'inp' && head !== 'adm' && head !== 'ad' && !isAdminState(ctx.st.user.state.kind)) await setState(ctx, null);
 
   switch (head) {
     case 'noop': return answer(ctx);
@@ -105,6 +106,7 @@ export async function onCallback(ctx: BotContext, data: string, botUsername: str
       return pendingLink ? openStartPayload(ctx, pendingLink) : showHome(ctx);
     }
     case 'adm': return onAdminCallback(ctx, data);
+    case 'ad': return onAdminNav(ctx, data);
     default: return answer(ctx);
   }
 }
@@ -189,6 +191,8 @@ export async function openStartPayload(ctx: BotContext, payload: string): Promis
   if (payload.startsWith('c_') && UUID.test(payload.slice(2))) return showCategory(ctx, payload.slice(2));
   if (payload.startsWith('g_') && UUID.test(payload.slice(2))) return showGroup(ctx, payload.slice(2));
   if (payload.startsWith('p_') && UUID.test(payload.slice(2))) return showProduct(ctx, payload.slice(2));
+  // admins land on their work screen; "View as customer" opens the normal home
+  if (ctx.chat?.type === 'private' && (await getAdmin(ctx))) return showAdminHome(ctx, { forceNew: true });
   return showHome(ctx, { forceNew: true });
 }
 

@@ -59,7 +59,8 @@ function install(bot: Bot<BotContext>): void {
     const isPrivate = ctx.chat?.type === 'private';
     if (!isPrivate) {
       // in groups (e.g. the admin alerts chat) only admin buttons and a couple of commands work
-      const ok = ctx.callbackQuery?.data?.startsWith('adm:') || GROUP_COMMANDS.test(ctx.message?.text ?? '');
+      const cbData = ctx.callbackQuery?.data ?? '';
+      const ok = cbData.startsWith('adm:') || cbData === 'ad' || cbData.startsWith('ad:') || GROUP_COMMANDS.test(ctx.message?.text ?? '');
       if (!ok) return;
     }
 
@@ -94,7 +95,7 @@ function install(bot: Bot<BotContext>): void {
     const { s, user } = ctx.st;
     const data = ctx.callbackQuery?.data ?? '';
     const text = ctx.message?.text ?? '';
-    if (data.startsWith('adm:') || /^\/(myid|admin|emoji|setemoji|cancel)\b/.test(text)) return next();
+    if (data.startsWith('adm:') || data === 'ad' || data.startsWith('ad:') || /^\/(myid|admin|emoji|setemoji|cancel)\b/.test(text)) return next();
 
     if (user.is_banned) {
       if (ctx.callbackQuery) return answer(ctx, plain(tr(ctx, 'banned')), true);
