@@ -97,5 +97,6 @@ export const payEn: Record<string, string> = {
   pay_above_max: '{e:warning} The maximum deposit is <b>{max}</b>.',
   pay_method_disabled: '{e:warning} This payment method is not available right now.',
   pay_not_configured: '{e:warning} This payment method is not configured yet. Please choose another one.',
+  pay_gateway_min: '{e:warning} This amount is below the network minimum for this coin. Please try a larger amount or another payment method.',
   pay_gateway_error: '{e:error} The payment provider did not respond. Please try again in a minute or choose another method.',
 };

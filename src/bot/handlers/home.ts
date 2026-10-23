@@ -3,6 +3,7 @@ import { show, tr } from '../context';
 import { buildMainMenu, visibleMenu } from '../ui';
 import { escapeHtml, raw } from '../../lib/i18n';
 import { button } from '../../lib/telegram';
+import { adminHomeRow } from '../adminHome';
 
 /** Welcome screen + main menu. */
 export async function showHome(ctx: BotContext, opts: { forceNew?: boolean } = {}): Promise<void> {
@@ -25,7 +26,10 @@ export async function showHome(ctx: BotContext, opts: { forceNew?: boolean } = {
     menu: raw(menuLines.join('\n')),
     links: raw(links.length ? `\n${links.join('\n')}\n` : ''),
   });
-  await show(ctx, html, buildMainMenu(s, em, lang), { imageUrl: s.bot.welcome_image_url || null, forceNew: opts.forceNew });
+  const kb = buildMainMenu(s, em, lang);
+  const adminRow = await adminHomeRow(ctx); // admins: "🛠 Admin" on top
+  if (adminRow) kb.unshift(adminRow);
+  await show(ctx, html, kb, { imageUrl: s.bot.welcome_image_url || null, forceNew: opts.forceNew });
 }
 
 export async function showLanguagePicker(ctx: BotContext): Promise<void> {

@@ -10,10 +10,11 @@ import { deliverManual, getOrder, refundOrder } from '../services/orders';
 import { approveManualDeposit, rejectDeposit } from '../services/deposits';
 import { resolveTicket } from '../services/tickets';
 import { fmtUsd } from '../lib/money';
+import { onAdminInput, showAdminHome } from './adminHome';
 
 // Admin actions inside Telegram. Admin texts are English (admins share one language).
 
-const ADMIN_STATES = ['await_admin_delivery', 'await_admin_replacement', 'await_admin_answer', 'await_emoji', 'await_setemoji'];
+const ADMIN_STATES = ['await_admin_delivery', 'await_admin_replacement', 'await_admin_answer', 'await_emoji', 'await_setemoji', 'await_admin_lookup', 'await_admin_balance', 'await_admin_message'];
 export function isAdminState(kind: string | undefined): boolean {
   return !!kind && ADMIN_STATES.includes(kind);
 }
@@ -184,6 +185,10 @@ export async function onAdminMessage(ctx: BotContext): Promise<boolean> {
 
   try {
     switch (st.kind) {
+      case 'await_admin_lookup':
+      case 'await_admin_balance':
+      case 'await_admin_message':
+        return await onAdminInput(ctx, st.kind, data);
       case 'await_admin_delivery': {
         const items = await readItems(ctx);
         if (!items.length) return say(ctx, 'Send at least one item.');
@@ -268,6 +273,7 @@ async function captureEmojis(ctx: BotContext): Promise<boolean> {
 export async function cmdAdmin(ctx: BotContext): Promise<void> {
   const admin = await getAdmin(ctx);
   if (!admin) return void (await ctx.reply(`Your Telegram ID: <code>${ctx.from!.id}</code>`, { parse_mode: 'HTML' }));
+  if (ctx.chat?.type === 'private') return showAdminHome(ctx, { forceNew: true });
   const url = `${baseUrl(ctx.st.s)}/admin/`;
   await ctx.reply(
     `🛠️ <b>Admin</b> — ${escapeHtml(admin.email)} (${admin.role})\n\n` +

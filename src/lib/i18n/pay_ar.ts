@@ -93,5 +93,6 @@ export const payAr: Record<string, string> = {
   pay_above_max: '{e:warning} الحد الأقصى للإيداع هو <b>{max}</b>.',
   pay_method_disabled: '{e:warning} طريقة الدفع هذه غير متاحة حالياً.',
   pay_not_configured: '{e:warning} طريقة الدفع هذه غير مُعدّة بعد. يرجى اختيار طريقة أخرى.',
+  pay_gateway_min: '{e:warning} هذا المبلغ أقل من الحد الأدنى للشبكة لهذه العملة. جرّب مبلغاً أكبر أو طريقة دفع أخرى.',
   pay_gateway_error: '{e:error} مزود الدفع لم يستجب. حاول مرة أخرى بعد دقيقة أو اختر طريقة أخرى.',
 };
