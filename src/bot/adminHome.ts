@@ -26,8 +26,8 @@ function b(text: string, data: string, style?: 'primary' | 'success' | 'danger')
 }
 
 function navRow(ctx: BotContext, back?: string): InlineButton[] {
-  const row = [b(L(ctx, '🛠 Admin home', '🛠 الإدارة'), 'ad')];
-  if (back) row.unshift(b(L(ctx, '⬅️ Back', '⬅️ رجوع'), back));
+  const row = [b(L(ctx, '🛠 Admin home', '🛠 الإدارة'), 'ad', 'success')];
+  if (back) row.unshift(b(L(ctx, '⬅️ Back', '⬅️ رجوع'), back, 'primary'));
   return row;
 }
 
@@ -66,7 +66,7 @@ export async function showAdminHome(ctx: BotContext, opts: { forceNew?: boolean 
   const since = startOfTodayUtc();
   const count = (table: string) => db(env).from(table).select('*', { count: 'exact', head: true });
 
-  const [manual, review, tickets, failed, atProvider, paused, stats, profit, providers] = await Promise.all([
+  const [manual, review, tickets, failed, atProvider, paused, stats, profit] = await Promise.all([
     headCount(count('orders').eq('status', 'manual_pending')),
     headCount(count('deposits').eq('status', 'confirming')),
     headCount(count('tickets').eq('status', 'open')),
@@ -75,9 +75,6 @@ export async function showAdminHome(ctx: BotContext, opts: { forceNew?: boolean 
     owner ? headCount(count('products').eq('is_active', true).not('paused_reason', 'is', null)) : Promise.resolve(0),
     rpc<{ orders: number; deposits: number; deposits_count: number; new_users: number }>(env, 'admin_stats', { p_from: since }),
     owner ? rpc<{ totals: { revenue: number; profit: number; orders: number } }>(env, 'admin_profit', { p_from: since, p_to: new Date().toISOString() }) : Promise.resolve(null),
-    owner
-      ? db(env).from('providers').select('name,enabled,balance,low_balance_threshold').then((r) => must(r, 'providers') as { name: string; enabled: boolean; balance: number | null; low_balance_threshold: number | null }[])
-      : Promise.resolve([]),
   ]);
 
   const lines: string[] = [
@@ -90,24 +87,20 @@ export async function showAdminHome(ctx: BotContext, opts: { forceNew?: boolean 
       : `${L(ctx, 'Orders', 'الطلبات')}: <b>${stats.orders}</b>`,
     `${L(ctx, 'Top-ups', 'الشحنات')}: <b>${stats.deposits_count}</b>${owner ? ` (${fmtUsd(stats.deposits)})` : ''} · ${L(ctx, 'new customers', 'زبائن جدد')}: <b>${stats.new_users}</b>`,
   ];
-  if (owner) {
-    const low = providers.filter((p) => p.enabled && p.balance != null && (Number(p.balance) <= 0 || (p.low_balance_threshold != null && Number(p.balance) < Number(p.low_balance_threshold))));
-    if (low.length) lines.push(`⚠️ ${L(ctx, 'Low provider balance', 'رصيد منخفض عند')}: ${low.map((p) => `${escapeHtml(p.name.trim())} ${fmtUsd(Number(p.balance))}`).join(' · ')}`);
-  }
   if (atProvider) lines.push(`⏳ ${L(ctx, 'At provider (being prepared)', 'عند المزوّد (قيد التجهيز)')}: <b>${atProvider}</b>`);
   const waiting = manual + review + tickets + failed + paused;
   lines.push('', waiting ? `📥 <b>${L(ctx, 'Waiting for you', 'بانتظارك')}</b> 👇` : `✅ ${L(ctx, 'Nothing is waiting for you.', 'لا شيء بانتظارك.')}`);
 
   const tag = (n: number) => (n ? ` (${n})` : '');
   const kb: InlineKeyboard = [
-    [b(`📦 ${L(ctx, 'Deliver', 'تسليم يدوي')}${tag(manual)}`, 'ad:in:man', manual ? 'primary' : undefined), b(`💳 ${L(ctx, 'Payments', 'دفعات للمراجعة')}${tag(review)}`, 'ad:in:dep', review ? 'primary' : undefined)],
-    [b(`🎫 ${L(ctx, 'Tickets', 'التذاكر')}${tag(tickets)}`, 'ad:in:tk', tickets ? 'primary' : undefined), b(`⚠️ ${L(ctx, 'Failed', 'طلبات فاشلة')}${tag(failed)}`, 'ad:in:fail', failed ? 'danger' : undefined)],
+    [b(`📦 ${L(ctx, 'Deliver', 'تسليم يدوي')}${tag(manual)}`, 'ad:in:man', 'success'), b(`💳 ${L(ctx, 'Payments', 'دفعات للمراجعة')}${tag(review)}`, 'ad:in:dep', 'success')],
+    [b(`🎫 ${L(ctx, 'Tickets', 'التذاكر')}${tag(tickets)}`, 'ad:in:tk', 'primary'), b(`⚠️ ${L(ctx, 'Failed', 'طلبات فاشلة')}${tag(failed)}`, 'ad:in:fail', 'danger')],
   ];
-  if (owner) kb.push([b(`⏸ ${L(ctx, 'Paused packs', 'باقات موقوفة')}${tag(paused)}`, 'ad:in:pause', paused ? 'danger' : undefined), b(`⚙️ ${L(ctx, 'Quick actions', 'إجراءات سريعة')}`, 'ad:qa')]);
-  kb.push([b(`🔎 ${L(ctx, 'Find order / customer', 'بحث عن طلب أو زبون')}`, 'ad:find')]);
-  kb.push([b(`👁 ${L(ctx, 'View as customer', 'عرض كزبون')}`, 'home', 'success'), b(`🔄 ${L(ctx, 'Refresh', 'تحديث')}`, 'ad:r')]);
+  if (owner) kb.push([b(`⏸ ${L(ctx, 'Paused packs', 'باقات موقوفة')}${tag(paused)}`, 'ad:in:pause', 'danger'), b(`⚙️ ${L(ctx, 'Quick actions', 'إجراءات سريعة')}`, 'ad:qa', 'primary')]);
+  kb.push([b(`🔎 ${L(ctx, 'Find order / customer', 'بحث عن طلب أو زبون')}`, 'ad:find', 'primary')]);
+  kb.push([b(`👁 ${L(ctx, 'View as customer', 'عرض كزبون')}`, 'home', 'success'), b(`🔄 ${L(ctx, 'Refresh', 'تحديث')}`, 'ad:r', 'primary')]);
   const panel = baseUrl(s);
-  if (panel) kb.push([{ text: `🌐 ${L(ctx, 'Admin panel', 'لوحة التحكم')}`, url: `${panel}/admin/` } as InlineButton]);
+  if (panel) kb.push([{ text: `🌐 ${L(ctx, 'Admin panel', 'لوحة التحكم')}`, url: `${panel}/admin/`, style: 'primary' } as InlineButton]);
 
   await show(ctx, lines.filter((l, i, a) => l !== '' || a[i - 1] !== '').join('\n'), kb, { forceNew: opts.forceNew });
 }
@@ -129,14 +122,14 @@ async function showList(ctx: BotContext, kind: string): Promise<void> {
       'admin orders',
     ) as Pick<OrderRow, 'id' | 'code' | 'product_name' | 'quantity' | 'total'>[];
     title = kind === 'man' ? `📦 <b>${L(ctx, 'Orders to deliver by hand', 'طلبات للتسليم اليدوي')}</b>` : `⚠️ <b>${L(ctx, 'Failed orders', 'طلبات فاشلة')}</b>`;
-    for (const o of rows) kb.push([b(`${o.code} · ${o.product_name.slice(0, 32)} ×${o.quantity} · ${fmtUsd(o.total)}`, `ad:o:${o.id}`)]);
+    for (const o of rows) kb.push([b(`${o.code} · ${o.product_name.slice(0, 32)} ×${o.quantity} · ${fmtUsd(o.total)}`, `ad:o:${o.id}`, kind === 'man' ? 'success' : 'danger')]);
   } else if (kind === 'dep') {
     const rows = must(
       await db(env).from('deposits').select('id,method,amount_usd,reference,created_at').eq('status', 'confirming').order('created_at', { ascending: true }).limit(15),
       'admin deposits',
     ) as Pick<DepositRow, 'id' | 'method' | 'amount_usd' | 'reference'>[];
     title = `💳 <b>${L(ctx, 'Payments to review', 'دفعات للمراجعة')}</b>`;
-    for (const d of rows) kb.push([b(`${fmtUsd(d.amount_usd)} · ${d.method} · ${d.reference ?? ''}`, `ad:d:${d.id}`)]);
+    for (const d of rows) kb.push([b(`${fmtUsd(d.amount_usd)} · ${d.method} · ${d.reference ?? ''}`, `ad:d:${d.id}`, 'success')]);
   } else if (kind === 'tk') {
     const rows = must(
       await db(env).from('tickets').select('id,kind,message,created_at').eq('status', 'open').order('created_at', { ascending: true }).limit(15),
@@ -144,7 +137,7 @@ async function showList(ctx: BotContext, kind: string): Promise<void> {
     ) as Pick<TicketRow, 'id' | 'kind' | 'message'>[];
     title = `🎫 <b>${L(ctx, 'Open tickets', 'تذاكر مفتوحة')}</b>`;
     const kindLabel = (k: TicketRow['kind']) => ({ replacement: L(ctx, 'replacement', 'استبدال'), refund: L(ctx, 'refund', 'استرداد'), support: L(ctx, 'support', 'دعم') })[k];
-    for (const t of rows) kb.push([b(`#${t.id} · ${kindLabel(t.kind)} · ${(t.message ?? '').slice(0, 30)}`, `ad:t:${t.id}`)]);
+    for (const t of rows) kb.push([b(`#${t.id} · ${kindLabel(t.kind)} · ${(t.message ?? '').slice(0, 30)}`, `ad:t:${t.id}`, 'primary')]);
   } else if (kind === 'pause') {
     if (admin.role !== 'owner') return void (await answer(ctx, 'Owner only.', true));
     const rows = must(
@@ -152,7 +145,7 @@ async function showList(ctx: BotContext, kind: string): Promise<void> {
       'admin paused',
     ) as { id: string; name_en: string; paused_reason: string }[];
     title = `⏸ <b>${L(ctx, 'Packs paused by price protection', 'باقات أوقفتها حماية الأسعار')}</b>`;
-    for (const p of rows) kb.push([b(`${p.paused_reason === 'cost_jump' ? '📈' : '📉'} ${p.name_en.slice(0, 48)}`, `ad:pk:${p.id}`)]);
+    for (const p of rows) kb.push([b(`${p.paused_reason === 'cost_jump' ? '📈' : '📉'} ${p.name_en.slice(0, 48)}`, `ad:pk:${p.id}`, 'danger')]);
   }
 
   const empty = !kb.length;
@@ -198,7 +191,7 @@ export async function showAdminOrder(ctx: BotContext, id: number, back = 'ad'): 
   if (['manual_pending', 'failed', 'processing', 'awaiting_provider', 'partially_delivered'].includes(o.status)) kb.push([b(`📦 ${L(ctx, 'Deliver by hand', 'تسليم يدوي')}`, `adm:deliver:${o.id}`, 'success')]);
   if (['failed', 'awaiting_provider', 'manual_pending'].includes(o.status)) kb.push([b(`🔁 ${L(ctx, 'Retry with provider', 'إعادة المحاولة عند المزوّد')}`, `ad:rt:${o.id}`, 'primary')]);
   if (owner && left > 0 && !['pending_payment', 'cancelled', 'refunded'].includes(o.status)) kb.push([b(`↩️ ${L(ctx, 'Refund to wallet', 'استرداد إلى المحفظة')} (${fmtUsd(left)})`, `adm:refund:${o.id}`, 'danger')]);
-  kb.push([b(`👤 ${L(ctx, 'Customer', 'الزبون')}`, `ad:u:${o.user_id}`)]);
+  kb.push([b(`👤 ${L(ctx, 'Customer', 'الزبون')}`, `ad:u:${o.user_id}`, 'primary')]);
   kb.push(navRow(ctx, back === 'ad' ? undefined : back));
   await show(ctx, lines.join('\n'), kb);
 }
@@ -221,11 +214,11 @@ async function showAdminDeposit(ctx: BotContext, id: string): Promise<void> {
   if (d.status === 'confirming') lines.push('', `⚠️ ${L(ctx, 'Check that the money really arrived before approving.', 'تأكد من وصول المبلغ فعلاً قبل الموافقة.')}`);
 
   const kb: InlineKeyboard = [];
-  if (d.proof_file_id) kb.push([b(`🖼 ${L(ctx, 'Show proof', 'عرض الإثبات')}`, `ad:pf:${d.id}`)]);
+  if (d.proof_file_id) kb.push([b(`🖼 ${L(ctx, 'Show proof', 'عرض الإثبات')}`, `ad:pf:${d.id}`, 'primary')]);
   if (['pending', 'confirming', 'expired'].includes(d.status)) {
     kb.push([b(`✅ ${L(ctx, 'Approve', 'موافقة')}`, `adm:dep_ok:${d.id}`, 'success'), b(`❌ ${L(ctx, 'Reject', 'رفض')}`, `adm:dep_no:${d.id}`, 'danger')]);
   }
-  kb.push([b(`👤 ${L(ctx, 'Customer', 'الزبون')}`, `ad:u:${d.user_id}`)]);
+  kb.push([b(`👤 ${L(ctx, 'Customer', 'الزبون')}`, `ad:u:${d.user_id}`, 'primary')]);
   kb.push(navRow(ctx, 'ad:in:dep'));
   await show(ctx, lines.join('\n'), kb);
 }
@@ -249,15 +242,15 @@ async function showAdminTicket(ctx: BotContext, id: number): Promise<void> {
   if (t.message) lines.push('', `<blockquote expandable>${escapeHtml(t.message.slice(0, 1500))}</blockquote>`);
 
   const kb: InlineKeyboard = [];
-  if (t.attachment_id) kb.push([b(`🖼 ${L(ctx, 'Show attachment', 'عرض المرفق')}`, `ad:ta:${t.id}`)]);
+  if (t.attachment_id) kb.push([b(`🖼 ${L(ctx, 'Show attachment', 'عرض المرفق')}`, `ad:ta:${t.id}`, 'primary')]);
   if (t.status === 'open') {
     if (t.order_id && t.kind !== 'support') kb.push([b(`🔄 ${L(ctx, 'Replace', 'استبدال')}`, `adm:tk_rep:${t.id}`, 'success')]);
     kb.push([b(`💬 ${L(ctx, 'Answer', 'رد')}`, `adm:tk_ans:${t.id}`, 'primary')]);
     if (admin.role === 'owner' && t.order_id) kb.push([b(`↩️ ${L(ctx, 'Refund', 'استرداد')}`, `adm:tk_ref:${t.id}`, 'danger')]);
-    kb.push([b(`✖️ ${L(ctx, 'Reject', 'رفض')}`, `adm:tk_no:${t.id}`)]);
+    kb.push([b(`✖️ ${L(ctx, 'Reject', 'رفض')}`, `adm:tk_no:${t.id}`, 'danger')]);
   }
-  if (o) kb.push([b(`🧾 ${L(ctx, 'Order', 'الطلب')}`, `ad:o:${o.id}`), b(`👤 ${L(ctx, 'Customer', 'الزبون')}`, `ad:u:${t.user_id}`)]);
-  else kb.push([b(`👤 ${L(ctx, 'Customer', 'الزبون')}`, `ad:u:${t.user_id}`)]);
+  if (o) kb.push([b(`🧾 ${L(ctx, 'Order', 'الطلب')}`, `ad:o:${o.id}`, 'primary'), b(`👤 ${L(ctx, 'Customer', 'الزبون')}`, `ad:u:${t.user_id}`, 'primary')]);
+  else kb.push([b(`👤 ${L(ctx, 'Customer', 'الزبون')}`, `ad:u:${t.user_id}`, 'primary')]);
   kb.push(navRow(ctx, 'ad:in:tk'));
   await show(ctx, lines.join('\n'), kb);
 }
@@ -283,9 +276,9 @@ export async function showAdminUser(ctx: BotContext, id: number): Promise<void> 
   if (u.note) lines.push(`📝 <i>${escapeHtml(u.note.slice(0, 300))}</i>`);
   if (orders.length) lines.push('', `${L(ctx, 'Latest orders', 'آخر الطلبات')} 👇`);
 
-  const kb: InlineKeyboard = orders.map((o) => [b(`${o.code} · ${o.product_name.slice(0, 28)} · ${fmtUsd(o.total)} · ${statusLabel(ctx, o.status).split(' ')[0]}`, `ad:o:${o.id}`)]);
+  const kb: InlineKeyboard = orders.map((o) => [b(`${o.code} · ${o.product_name.slice(0, 28)} · ${fmtUsd(o.total)} · ${statusLabel(ctx, o.status).split(' ')[0]}`, `ad:o:${o.id}`, 'primary')]);
   const actions = [b(`✉️ ${L(ctx, 'Message', 'مراسلة')}`, `ad:msg:${u.id}`, 'primary')];
-  if (admin.role === 'owner') actions.unshift(b(`💰 ${L(ctx, 'Adjust balance', 'تعديل الرصيد')}`, `ad:bal:${u.id}`));
+  if (admin.role === 'owner') actions.unshift(b(`💰 ${L(ctx, 'Adjust balance', 'تعديل الرصيد')}`, `ad:bal:${u.id}`, 'success'));
   kb.push(actions);
   kb.push(navRow(ctx));
   await show(ctx, lines.join('\n'), kb);
@@ -307,7 +300,7 @@ async function showPausedPack(ctx: BotContext, id: string): Promise<void> {
   } else {
     lines.push(L(ctx, 'This pack is selling normally.', 'هذه الباقة تُباع بشكل طبيعي.'));
   }
-  kb.push([b(`🛍 ${L(ctx, 'Open in shop', 'فتح في المتجر')}`, `p:${p.id}`)]);
+  kb.push([b(`🛍 ${L(ctx, 'Open in shop', 'فتح في المتجر')}`, `p:${p.id}`, 'primary')]);
   kb.push(navRow(ctx, 'ad:in:pause'));
   await show(ctx, lines.join('\n'), kb);
 }
@@ -329,7 +322,7 @@ async function showQuickActions(ctx: BotContext): Promise<void> {
   ];
   const kb: InlineKeyboard = [[b(s.bot.maintenance_mode ? `✅ ${L(ctx, 'Turn maintenance off', 'إيقاف وضع الصيانة')}` : `🚧 ${L(ctx, 'Turn maintenance on', 'تفعيل وضع الصيانة')}`, 'ad:mt', s.bot.maintenance_mode ? 'success' : 'danger')]];
   for (const p of providers) {
-    kb.push([b(`${p.enabled ? '🟢' : '🔴'} ${p.name.trim()} · ${p.balance != null ? fmtUsd(Number(p.balance)) : '—'}`, `ad:pv:${p.id}`)]);
+    kb.push([b(`${p.enabled ? '🟢' : '🔴'} ${p.name.trim()} · ${p.balance != null ? fmtUsd(Number(p.balance)) : '—'}`, `ad:pv:${p.id}`, p.enabled ? 'success' : 'danger')]);
   }
   kb.push(navRow(ctx));
   await show(ctx, lines.join('\n'), kb);
@@ -463,8 +456,8 @@ export async function onAdminInput(ctx: BotContext, kind: string, data: Record<s
       ? must(await db(env).from('users').select('id,first_name,last_name,username').or(`username.ilike.%${term}%,first_name.ilike.%${term}%`).limit(8), 'find users') as Pick<UserRow, 'id' | 'first_name' | 'last_name' | 'username'>[]
       : [];
     if (users.length === 1) { await showAdminUser(ctx, users[0].id); return true; }
-    const kb: InlineKeyboard = users.map((u) => [b(`👤 ${[u.first_name, u.last_name].filter(Boolean).join(' ') || u.id}${u.username ? ` @${u.username}` : ''}`, `ad:u:${u.id}`)]);
-    kb.push([b(`🔎 ${L(ctx, 'Search again', 'بحث مرة أخرى')}`, 'ad:find')], navRow(ctx));
+    const kb: InlineKeyboard = users.map((u) => [b(`👤 ${[u.first_name, u.last_name].filter(Boolean).join(' ') || u.id}${u.username ? ` @${u.username}` : ''}`, `ad:u:${u.id}`, 'primary')]);
+    kb.push([b(`🔎 ${L(ctx, 'Search again', 'بحث مرة أخرى')}`, 'ad:find', 'primary')], navRow(ctx));
     await ctx.reply(users.length ? L(ctx, 'Several customers match:', 'عدة زبائن مطابقين:') : L(ctx, `Nothing found for “${escapeHtml(q)}”.`, `لا نتائج لـ «${escapeHtml(q)}».`), { parse_mode: 'HTML', reply_markup: { inline_keyboard: kb } as never });
     return true;
   }
@@ -492,7 +485,7 @@ export async function onAdminInput(ctx: BotContext, kind: string, data: Record<s
         const bal = u.lang === 'ar' ? 'الرصيد' : 'Balance';
         await notifyUser(env, userId, `${head}\n${sign}${fmtUsd(Math.abs(amount))}${note ? `\n<i>${escapeHtml(note)}</i>` : ''}\n${bal}: <b>${fmtUsd(Number(balance))}</b>`);
       }
-      await ctx.reply(`✅ ${L(ctx, 'New balance', 'الرصيد الجديد')}: <b>${fmtUsd(Number(balance))}</b>`, { parse_mode: 'HTML', reply_markup: { inline_keyboard: [[b(`👤 ${L(ctx, 'Customer', 'الزبون')}`, `ad:u:${userId}`)], navRow(ctx)] } as never });
+      await ctx.reply(`✅ ${L(ctx, 'New balance', 'الرصيد الجديد')}: <b>${fmtUsd(Number(balance))}</b>`, { parse_mode: 'HTML', reply_markup: { inline_keyboard: [[b(`👤 ${L(ctx, 'Customer', 'الزبون')}`, `ad:u:${userId}`, 'primary')], navRow(ctx)] } as never });
     } catch (e) {
       const msg = (e as Error).message;
       await ctx.reply(msg.includes('INSUFFICIENT') ? L(ctx, 'The balance would go below zero.', 'الرصيد سيصبح أقل من صفر.') : `❌ ${escapeHtml(msg.slice(0, 200))}`, { parse_mode: 'HTML' });
@@ -507,7 +500,7 @@ export async function onAdminInput(ctx: BotContext, kind: string, data: Record<s
     const ok = await notifyUser(env, userId, `${head}\n\n${escapeHtml(text.slice(0, 3500))}`);
     await setState(ctx, null);
     await audit(env, { admin_id: admin.user_id, admin_email: admin.email, action: 'user.message', entity: 'user', entity_id: userId, data: { via: 'bot', delivered: ok } });
-    await ctx.reply(ok ? `✅ ${L(ctx, 'Sent.', 'تم الإرسال.')}` : `⚠️ ${L(ctx, 'Not delivered — the customer blocked the bot.', 'لم تصل — الزبون حظر البوت.')}`, { reply_markup: { inline_keyboard: [[b(`👤 ${L(ctx, 'Customer', 'الزبون')}`, `ad:u:${userId}`)], navRow(ctx)] } as never });
+    await ctx.reply(ok ? `✅ ${L(ctx, 'Sent.', 'تم الإرسال.')}` : `⚠️ ${L(ctx, 'Not delivered — the customer blocked the bot.', 'لم تصل — الزبون حظر البوت.')}`, { reply_markup: { inline_keyboard: [[b(`👤 ${L(ctx, 'Customer', 'الزبون')}`, `ad:u:${userId}`, 'primary')], navRow(ctx)] } as never });
     return true;
   }
   return false;
